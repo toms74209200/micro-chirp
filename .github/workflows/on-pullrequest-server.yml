@@ -1,0 +1,22 @@
+name: On Pull Request (Server)
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'server/**/*.kt'
+      - 'server/build.gradle.kts'
+      - 'server/**/*.yml'
+
+jobs:
+  build:
+    uses: ./.github/workflows/job-build-server.yml
+  test-small:
+    needs:
+      - build
+    uses: ./.github/workflows/job-test-small-server.yml
+  test-medium:
+    needs:
+      - build
+    uses: ./.github/workflows/job-test-medium-server.yml
