@@ -115,7 +115,7 @@ val integrationTest =
 
         useJUnitPlatform()
         environment("TESTCONTAINERS_RYUK_DISABLED", "true")
-        environment("TESTCONTAINERS_HOST_OVERRIDE", "host.docker.internal")
+        environment("TESTCONTAINERS_HOST_OVERRIDE", System.getenv("TESTCONTAINERS_HOST_OVERRIDE") ?: "host.docker.internal")
         testLogging {
             events("passed", "skipped", "failed")
             exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

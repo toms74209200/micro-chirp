@@ -20,4 +20,6 @@ jobs:
           key: build-${{ github.sha }}
       - name: Run tests
         working-directory: ./server
+        env:
+          TESTCONTAINERS_HOST_OVERRIDE: localhost
         run: ./gradlew integrationTest --no-daemon
