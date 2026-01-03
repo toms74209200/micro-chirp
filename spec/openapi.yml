@@ -1,0 +1,923 @@
+openapi: 3.0.3
+info:
+  title: micro-chirp API
+  description: A highly available SNS application using Event Sourcing and CQRS
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - auth
+      operationId: postAuthLogin
+      summary: Anonymous login
+      description: Generate and return a new UUID for anonymous user
+      responses:
+        '200':
+          description: Successfully logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                    format: uuid
+                    description: Generated user ID
+                required:
+                  - userId
+
+  /posts:
+    post:
+      tags:
+        - posts
+      operationId: postPosts
+      summary: Create a new post
+      description: Create a new post with text content (grapheme-based character limit validation)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: User ID of the post author
+                content:
+                  type: string
+                  description: Text content of the post
+              required:
+                - userId
+                - content
+      responses:
+        '201':
+          description: Post created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  postId:
+                    type: string
+                    format: uuid
+                    description: ID of the created post
+                  userId:
+                    type: string
+                    format: uuid
+                    description: User ID of the post author
+                  content:
+                    type: string
+                    description: Text content of the post
+                  createdAt:
+                    type: string
+                    format: date-time
+                    description: Post creation timestamp
+                required:
+                  - postId
+                  - userId
+                  - content
+                  - createdAt
+        '400':
+          description: Bad request (e.g., content exceeds character limit)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+
+  /posts/{postId}:
+    get:
+      tags:
+        - posts
+      operationId: getPostsById
+      summary: Get post details
+      description: Retrieve detailed information about a specific post including like/repost/reply/view counts
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the post to retrieve
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Current user ID to check like/repost status
+      responses:
+        '200':
+          description: Post details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  postId:
+                    type: string
+                    format: uuid
+                    description: Post ID
+                  userId:
+                    type: string
+                    format: uuid
+                    description: User ID of the post author
+                  content:
+                    type: string
+                    description: Text content of the post
+                  createdAt:
+                    type: string
+                    format: date-time
+                    description: Post creation timestamp
+                  isDeleted:
+                    type: boolean
+                    description: Whether the post is deleted
+                  likeCount:
+                    type: integer
+                    description: Number of likes
+                  repostCount:
+                    type: integer
+                    description: Number of reposts
+                  replyCount:
+                    type: integer
+                    description: Number of replies
+                  viewCount:
+                    type: integer
+                    description: Number of views
+                  isLikedByCurrentUser:
+                    type: boolean
+                    description: Whether current user has liked this post
+                  isRepostedByCurrentUser:
+                    type: boolean
+                    description: Whether current user has reposted this post
+                required:
+                  - postId
+                  - userId
+                  - content
+                  - createdAt
+                  - isDeleted
+                  - likeCount
+                  - repostCount
+                  - replyCount
+                  - viewCount
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+
+    delete:
+      tags:
+        - posts
+      operationId: deletePostsById
+      summary: Delete a post
+      description: Delete an existing post (soft delete via event)
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the post to delete
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: User ID requesting the deletion
+              required:
+                - userId
+      responses:
+        '204':
+          description: Post deleted successfully
+        '403':
+          description: Forbidden (user is not the post author)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+
+  /timeline/global:
+    get:
+      tags:
+        - timeline
+      operationId: getTimelineGlobal
+      summary: Get global timeline
+      description: Retrieve posts in chronological order (excluding deleted posts) with pagination
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Number of posts to retrieve
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Offset for pagination
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Current user ID to check like/repost status
+      responses:
+        '200':
+          description: Timeline retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        postId:
+                          type: string
+                          format: uuid
+                          description: Post ID
+                        userId:
+                          type: string
+                          format: uuid
+                          description: User ID of the post author
+                        content:
+                          type: string
+                          description: Text content of the post
+                        createdAt:
+                          type: string
+                          format: date-time
+                          description: Post creation timestamp
+                        likeCount:
+                          type: integer
+                          description: Number of likes
+                        repostCount:
+                          type: integer
+                          description: Number of reposts
+                        replyCount:
+                          type: integer
+                          description: Number of replies
+                        viewCount:
+                          type: integer
+                          description: Number of views
+                        isLikedByCurrentUser:
+                          type: boolean
+                          description: Whether current user has liked this post
+                        isRepostedByCurrentUser:
+                          type: boolean
+                          description: Whether current user has reposted this post
+                      required:
+                        - postId
+                        - userId
+                        - content
+                        - createdAt
+                        - likeCount
+                        - repostCount
+                        - replyCount
+                        - viewCount
+                  total:
+                    type: integer
+                    description: Total number of posts
+                  limit:
+                    type: integer
+                    description: Number of posts requested
+                  offset:
+                    type: integer
+                    description: Offset used for pagination
+                required:
+                  - posts
+                  - total
+                  - limit
+                  - offset
+
+  /timeline/users/{userId}:
+    get:
+      tags:
+        - timeline
+      operationId: getTimelineByUserId
+      summary: Get user-specific timeline
+      description: Retrieve posts by a specific user (excluding deleted posts) with pagination
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User ID whose posts to retrieve
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Number of posts to retrieve
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Offset for pagination
+        - name: currentUserId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Current user ID to check like/repost status
+      responses:
+        '200':
+          description: User timeline retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        postId:
+                          type: string
+                          format: uuid
+                          description: Post ID
+                        userId:
+                          type: string
+                          format: uuid
+                          description: User ID of the post author
+                        content:
+                          type: string
+                          description: Text content of the post
+                        createdAt:
+                          type: string
+                          format: date-time
+                          description: Post creation timestamp
+                        likeCount:
+                          type: integer
+                          description: Number of likes
+                        repostCount:
+                          type: integer
+                          description: Number of reposts
+                        replyCount:
+                          type: integer
+                          description: Number of replies
+                        viewCount:
+                          type: integer
+                          description: Number of views
+                        isLikedByCurrentUser:
+                          type: boolean
+                          description: Whether current user has liked this post
+                        isRepostedByCurrentUser:
+                          type: boolean
+                          description: Whether current user has reposted this post
+                      required:
+                        - postId
+                        - userId
+                        - content
+                        - createdAt
+                        - likeCount
+                        - repostCount
+                        - replyCount
+                        - viewCount
+                  total:
+                    type: integer
+                    description: Total number of posts by this user
+                  limit:
+                    type: integer
+                    description: Number of posts requested
+                  offset:
+                    type: integer
+                    description: Offset used for pagination
+                required:
+                  - posts
+                  - total
+                  - limit
+                  - offset
+
+  /posts/{postId}/likes:
+    post:
+      tags:
+        - likes
+      operationId: postLikes
+      summary: Like a post
+      description: Add a like to a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the post to like
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: User ID performing the like
+              required:
+                - userId
+      responses:
+        '201':
+          description: Post liked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  postId:
+                    type: string
+                    format: uuid
+                    description: Post ID
+                  userId:
+                    type: string
+                    format: uuid
+                    description: User ID who liked the post
+                  likedAt:
+                    type: string
+                    format: date-time
+                    description: Like timestamp
+                required:
+                  - postId
+                  - userId
+                  - likedAt
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+
+    delete:
+      tags:
+        - likes
+      operationId: deleteLikes
+      summary: Unlike a post
+      description: Remove a like from a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the post to unlike
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: User ID performing the unlike
+              required:
+                - userId
+      responses:
+        '204':
+          description: Post unliked successfully
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+
+  /posts/{postId}/reposts:
+    post:
+      tags:
+        - reposts
+      operationId: postReposts
+      summary: Repost a post
+      description: Add a repost to a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the post to repost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: User ID performing the repost
+              required:
+                - userId
+      responses:
+        '201':
+          description: Post reposted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  postId:
+                    type: string
+                    format: uuid
+                    description: Post ID
+                  userId:
+                    type: string
+                    format: uuid
+                    description: User ID who reposted the post
+                  repostedAt:
+                    type: string
+                    format: date-time
+                    description: Repost timestamp
+                required:
+                  - postId
+                  - userId
+                  - repostedAt
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+
+    delete:
+      tags:
+        - reposts
+      operationId: deleteReposts
+      summary: Unrepost a post
+      description: Remove a repost from a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the post to unrepost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: User ID performing the unrepost
+              required:
+                - userId
+      responses:
+        '204':
+          description: Post unreposted successfully
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+
+  /posts/{postId}/replies:
+    post:
+      tags:
+        - replies
+      operationId: postReplies
+      summary: Reply to a post
+      description: Create a reply to an existing post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the post to reply to
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: User ID creating the reply
+                content:
+                  type: string
+                  description: Text content of the reply
+              required:
+                - userId
+                - content
+      responses:
+        '201':
+          description: Reply created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  replyPostId:
+                    type: string
+                    format: uuid
+                    description: ID of the reply post
+                  replyToPostId:
+                    type: string
+                    format: uuid
+                    description: ID of the original post
+                  userId:
+                    type: string
+                    format: uuid
+                    description: User ID of the reply author
+                  content:
+                    type: string
+                    description: Text content of the reply
+                  createdAt:
+                    type: string
+                    format: date-time
+                    description: Reply creation timestamp
+                required:
+                  - replyPostId
+                  - replyToPostId
+                  - userId
+                  - content
+                  - createdAt
+        '400':
+          description: Bad request (e.g., content exceeds character limit)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+
+    get:
+      tags:
+        - replies
+      operationId: getReplies
+      summary: Get replies to a post
+      description: Retrieve all replies to a specific post (excluding deleted replies) with pagination
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the post whose replies to retrieve
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Number of replies to retrieve
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Offset for pagination
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Current user ID to check like/repost status
+      responses:
+        '200':
+          description: Replies retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  replies:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        replyPostId:
+                          type: string
+                          format: uuid
+                          description: ID of the reply post
+                        replyToPostId:
+                          type: string
+                          format: uuid
+                          description: ID of the original post
+                        userId:
+                          type: string
+                          format: uuid
+                          description: User ID of the reply author
+                        content:
+                          type: string
+                          description: Text content of the reply
+                        createdAt:
+                          type: string
+                          format: date-time
+                          description: Reply creation timestamp
+                        likeCount:
+                          type: integer
+                          description: Number of likes
+                        repostCount:
+                          type: integer
+                          description: Number of reposts
+                        replyCount:
+                          type: integer
+                          description: Number of replies to this reply
+                        viewCount:
+                          type: integer
+                          description: Number of views
+                        isLikedByCurrentUser:
+                          type: boolean
+                          description: Whether current user has liked this reply
+                        isRepostedByCurrentUser:
+                          type: boolean
+                          description: Whether current user has reposted this reply
+                      required:
+                        - replyPostId
+                        - replyToPostId
+                        - userId
+                        - content
+                        - createdAt
+                        - likeCount
+                        - repostCount
+                        - replyCount
+                        - viewCount
+                  total:
+                    type: integer
+                    description: Total number of replies
+                  limit:
+                    type: integer
+                    description: Number of replies requested
+                  offset:
+                    type: integer
+                    description: Offset used for pagination
+                required:
+                  - replies
+                  - total
+                  - limit
+                  - offset
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+
+  /posts/{postId}/views:
+    post:
+      tags:
+        - views
+      operationId: postViews
+      summary: Record a view
+      description: Record a view event for a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the post being viewed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: User ID viewing the post
+              required:
+                - userId
+      responses:
+        '201':
+          description: View recorded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  postId:
+                    type: string
+                    format: uuid
+                    description: Post ID
+                  userId:
+                    type: string
+                    format: uuid
+                    description: User ID who viewed the post
+                  viewedAt:
+                    type: string
+                    format: date-time
+                    description: View timestamp
+                required:
+                  - postId
+                  - userId
+                  - viewedAt
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
