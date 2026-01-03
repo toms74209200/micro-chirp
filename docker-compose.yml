@@ -1,0 +1,16 @@
+services:
+  server:
+    image: mcr.microsoft.com/devcontainers/java:25-trixie
+    volumes:
+      - ./:/workspaces/micro-chirp
+    command: sleep infinity
+    ports:
+      - "8080:8080"
+    working_dir: /workspaces/micro-chirp
+
+  database:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: chirpuser
+      POSTGRES_PASSWORD: chirppassword
+      POSTGRES_DB: chirpdb
