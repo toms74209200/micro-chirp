@@ -3,6 +3,7 @@ services:
     image: mcr.microsoft.com/devcontainers/java:25-trixie
     volumes:
       - ./:/workspaces/micro-chirp
+      - /var/run/docker.sock:/var/run/docker.sock
     command: sleep infinity
     ports:
       - "8080:8080"

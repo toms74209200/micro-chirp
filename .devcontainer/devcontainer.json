@@ -8,6 +8,8 @@
 	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
 	"runServices": ["database"],
 
+	"remoteEnv": { "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}" },
+
 	"features": {
 		"ghcr.io/devcontainers/features/java:1": {
 			"version": "none",
@@ -15,7 +17,9 @@
 			"installGradle": "true"
 		},
 		"ghcr.io/devcontainers/features/github-cli:1": {},
-		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+			"moby": false
+		}
 	},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
