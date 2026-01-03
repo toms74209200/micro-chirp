@@ -114,6 +114,8 @@ val integrationTest =
         shouldRunAfter("test")
 
         useJUnitPlatform()
+        environment("TESTCONTAINERS_RYUK_DISABLED", "true")
+        environment("TESTCONTAINERS_HOST_OVERRIDE", "host.docker.internal")
         testLogging {
             events("passed", "skipped", "failed")
             exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
@@ -140,6 +142,7 @@ openApiGenerate {
             "delegatePattern" to "true",
             "interfaceOnly" to "true",
             "useTags" to "true",
+            "useSpringBoot3" to "true",
         ),
     )
 }
@@ -147,6 +150,8 @@ openApiGenerate {
 tasks.named("compileKotlin") {
     dependsOn("openApiGenerate")
 }
+
+kotlin.sourceSets["main"].kotlin.srcDir("${layout.buildDirectory.get()}/generated/src/main/kotlin")
 
 // Spotless Configuration
 spotless {
