@@ -8,7 +8,7 @@ plugins {
     id("com.diffplug.spotless") version "7.0.2"
 }
 
-group = "com.microchirp"
+group = "com.example"
 version = "0.0.1-SNAPSHOT"
 description = "Event Sourcing and CQRS SNS application"
 
@@ -133,8 +133,8 @@ openApiGenerate {
     generatorName.set("kotlin-spring")
     inputSpec.set("${project.rootDir.parent}/spec/openapi.yml")
     outputDir.set("${layout.buildDirectory.get()}/generated")
-    apiPackage.set("com.microchirp.api")
-    modelPackage.set("com.microchirp.model")
+    apiPackage.set("com.example.api")
+    modelPackage.set("com.example.model")
     configOptions.set(
         mapOf(
             "delegatePattern" to "true",

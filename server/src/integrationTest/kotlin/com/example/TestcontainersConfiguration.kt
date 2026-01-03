@@ -1,4 +1,4 @@
-package com.microchirp
+package com.example
 
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
@@ -10,5 +10,5 @@ import org.testcontainers.utility.DockerImageName
 class TestcontainersConfiguration {
     @Bean
     @ServiceConnection
-    fun postgresContainer(): PostgreSQLContainer = PostgreSQLContainer(DockerImageName.parse("postgres:latest"))
+    fun postgresContainer() = PostgreSQLContainer(DockerImageName.parse("postgres:18"))
 }
