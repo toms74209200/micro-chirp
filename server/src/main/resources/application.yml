@@ -16,3 +16,10 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
         show_sql: false
+
+otel:
+  logs:
+    exporter: none
+  exporter:
+    otlp:
+      endpoint: http://jaeger:4318

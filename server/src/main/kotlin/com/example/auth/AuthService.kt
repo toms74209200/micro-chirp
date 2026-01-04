@@ -1,5 +1,6 @@
 package com.example.auth
 
+import io.opentelemetry.instrumentation.annotations.WithSpan
 import org.springframework.dao.DataAccessException
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -19,6 +20,7 @@ sealed interface AuthResult {
 class AuthService(
     private val userRepository: UserRepository,
 ) {
+    @WithSpan
     fun generateUserId(): AuthResult {
         val userId = UUID.randomUUID()
         val user = User(id = userId, createdAt = Instant.now())
