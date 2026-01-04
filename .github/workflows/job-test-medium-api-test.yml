@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         working-directory: ./api-tests
         run: uv sync
+      - name: Generate OpenAPI client
+        working-directory: ./api-tests
+        run: uv run openapi-python-client generate --path ../spec/openapi.yml --output-path openapi_gen --overwrite
       - name: Wait for server to be ready
         run: ./.github/scripts/wait-for-it.sh localhost:8080/actuator/health
       - name: Run tests
