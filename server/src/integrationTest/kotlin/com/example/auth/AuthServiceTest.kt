@@ -10,7 +10,6 @@ import org.springframework.context.annotation.Import
 @SpringBootTest
 @Import(TestcontainersConfiguration::class)
 class AuthServiceTest {
-
     @Autowired
     private lateinit var authService: AuthService
 
