@@ -1,0 +1,34 @@
+name: Job - Test Medium size (API Test)
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Launch Database
+        run: docker compose up -d database
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+      - name: Launch Server
+        working-directory: ./server
+        env:
+          DB_HOST: localhost
+        run: ./gradlew bootRun --no-daemon &
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: "api-tests/.python-version"
+      - uses: astral-sh/setup-uv@v7
+      - name: Install dependencies
+        working-directory: ./api-tests
+        run: uv sync
+      - name: Wait for server to be ready
+        run: ./.github/scripts/wait-for-it.sh localhost:8080/actuator/health
+      - name: Run tests
+        working-directory: ./api-tests
+        run: uv run pytest tests/ -vv
