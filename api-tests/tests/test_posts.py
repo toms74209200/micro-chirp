@@ -7,6 +7,7 @@ from openapi_gen.micro_chirp_api_client.api.auth import post_auth_login
 from openapi_gen.micro_chirp_api_client.client import Client
 
 UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+ISO8601_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$")
 
 
 def test_post_posts_with_valid_request_returns_201():
@@ -24,7 +25,7 @@ def test_post_posts_with_valid_request_returns_201():
     assert UUID_PATTERN.match(data["postId"])
     assert data["userId"] == user_id
     assert data["content"] == "Hello, world!"
-    assert data["createdAt"] is not None
+    assert ISO8601_PATTERN.match(data["createdAt"])
 
 
 def test_post_posts_with_blank_content_returns_400():
