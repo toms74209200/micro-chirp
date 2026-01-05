@@ -138,9 +138,6 @@ paths:
                     type: string
                     format: date-time
                     description: Post creation timestamp
-                  isDeleted:
-                    type: boolean
-                    description: Whether the post is deleted
                   likeCount:
                     type: integer
                     description: Number of likes
@@ -164,7 +161,6 @@ paths:
                   - userId
                   - content
                   - createdAt
-                  - isDeleted
                   - likeCount
                   - repostCount
                   - replyCount
