@@ -5,4 +5,6 @@ import org.springframework.stereotype.Repository
 import java.util.UUID
 
 @Repository
-interface PostEventRepository : JpaRepository<PostEvent, UUID>
+interface PostEventRepository : JpaRepository<PostEvent, UUID> {
+    fun findByPostIdOrderByOccurredAtAsc(postId: UUID): List<PostEvent>
+}
