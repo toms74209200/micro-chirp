@@ -24,6 +24,27 @@ sealed interface PostCreationResult {
     ) : PostCreationResult
 }
 
+sealed interface PostRetrievalResult {
+    data class Success(
+        val postId: UUID,
+        val userId: UUID,
+        val content: String,
+        val createdAt: Instant,
+        val likeCount: Int,
+        val repostCount: Int,
+        val replyCount: Int,
+        val viewCount: Int,
+        val isLikedByCurrentUser: Boolean?,
+        val isRepostedByCurrentUser: Boolean?,
+    ) : PostRetrievalResult
+
+    data object NotFound : PostRetrievalResult
+
+    data class DataAccessFailure(
+        val exception: Exception,
+    ) : PostRetrievalResult
+}
+
 class ValidationException(
     message: String,
 ) : Exception(message)
@@ -62,7 +83,7 @@ class PostService(
             PostEvent(
                 eventId = eventId,
                 postId = postId,
-                eventType = "post_created",
+                eventType = PostEventType.POST_CREATED.value,
                 eventData = eventDataJson,
                 occurredAt = occurredAt,
             )
@@ -78,5 +99,35 @@ class PostService(
         } catch (e: DataAccessException) {
             PostCreationResult.DataAccessFailure(e)
         }
+    }
+
+    @WithSpan
+    fun getPost(
+        postId: UUID,
+        currentUserId: UUID?,
+    ): PostRetrievalResult {
+        val events =
+            try {
+                postEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
+            } catch (e: DataAccessException) {
+                return PostRetrievalResult.DataAccessFailure(e)
+            }
+
+        val aggregatedPost =
+            aggregatePostEvents(events, objectMapper)
+                ?: return PostRetrievalResult.NotFound
+
+        return PostRetrievalResult.Success(
+            postId = postId,
+            userId = aggregatedPost.userId,
+            content = aggregatedPost.content,
+            createdAt = aggregatedPost.createdAt,
+            likeCount = 0,
+            repostCount = 0,
+            replyCount = 0,
+            viewCount = 0,
+            isLikedByCurrentUser = currentUserId?.let { false },
+            isRepostedByCurrentUser = currentUserId?.let { false },
+        )
     }
 }

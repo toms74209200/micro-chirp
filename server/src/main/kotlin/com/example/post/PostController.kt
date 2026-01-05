@@ -1,6 +1,7 @@
 package com.example.post
 
 import com.example.api.PostsApi
+import com.example.model.GetPostsById200Response
 import com.example.model.PostPosts201Response
 import com.example.model.PostPosts400Response
 import com.example.model.PostPostsRequest
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestController
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.util.UUID
 
 @RestController
 class PostController(
@@ -38,11 +40,46 @@ class PostController(
             }
         }
 
+    override fun getPostsById(
+        postId: UUID,
+        userId: UUID?,
+    ): ResponseEntity<GetPostsById200Response> =
+        when (val result = postService.getPost(postId, userId)) {
+            is PostRetrievalResult.Success -> {
+                val response =
+                    GetPostsById200Response(
+                        postId = result.postId,
+                        userId = result.userId,
+                        content = result.content,
+                        createdAt = OffsetDateTime.ofInstant(result.createdAt, ZoneOffset.UTC),
+                        likeCount = result.likeCount,
+                        repostCount = result.repostCount,
+                        replyCount = result.replyCount,
+                        viewCount = result.viewCount,
+                        isLikedByCurrentUser = result.isLikedByCurrentUser,
+                        isRepostedByCurrentUser = result.isRepostedByCurrentUser,
+                    )
+                ResponseEntity.ok(response)
+            }
+            is PostRetrievalResult.NotFound -> {
+                throw PostNotFoundException("Post not found")
+            }
+            is PostRetrievalResult.DataAccessFailure -> {
+                throw result.exception
+            }
+        }
+
     @ExceptionHandler(ValidationException::class)
     fun handleValidationException(e: ValidationException): ResponseEntity<PostPosts400Response> {
         logger.info("Validation error: {}", e.message)
         val response = PostPosts400Response(error = e.message)
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response)
+    }
+
+    @ExceptionHandler(PostNotFoundException::class)
+    fun handlePostNotFoundException(e: PostNotFoundException): ResponseEntity<Map<String, String>> {
+        logger.info("Post not found: {}", e.message)
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(mapOf("error" to (e.message ?: "")))
     }
 
     @ExceptionHandler(Exception::class)
@@ -51,3 +88,7 @@ class PostController(
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()
     }
 }
+
+class PostNotFoundException(
+    message: String,
+) : Exception(message)
