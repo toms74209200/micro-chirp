@@ -1,0 +1,35 @@
+[project]
+name = "micro-chirp-loadtest"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "locust>=2.43.0",
+]
+
+[dependency-groups]
+dev = [
+    "openapi-python-client>=0.28.0",
+    "ruff>=0.14.10",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = [
+    ".venv",
+    "openapi_gen",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
