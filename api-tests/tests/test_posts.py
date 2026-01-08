@@ -129,3 +129,85 @@ def test_get_posts_by_id_with_user_id_parameter_returns_200():
     assert data["content"] == expected_content
     assert data["isLikedByCurrentUser"] is False
     assert data["isRepostedByCurrentUser"] is False
+
+
+def test_get_posts_by_id_with_deleted_post_returns_404():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = auth_response.user_id
+
+    expected_content = f"Test content {uuid4().hex[:8]}"
+    body = PostPostsBody(user_id=user_id, content=expected_content)
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    delete_response = requests.delete(
+        f"{BASE_URL}/posts/{post_id}",
+        json={"userId": str(user_id)},
+    )
+    assert delete_response.status_code == 204
+
+    response = requests.get(f"{BASE_URL}/posts/{post_id}")
+
+    assert response.status_code == 404
+    data = response.json()
+    assert data["error"] == "Post not found"
+
+
+def test_delete_posts_by_id_with_valid_request_returns_204():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = auth_response.user_id
+
+    expected_content = f"Test content {uuid4().hex[:8]}"
+    body = PostPostsBody(user_id=user_id, content=expected_content)
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    response = requests.delete(
+        f"{BASE_URL}/posts/{post_id}",
+        json={"userId": str(user_id)},
+    )
+
+    assert response.status_code == 204
+
+
+def test_delete_posts_by_id_with_nonexistent_post_returns_404():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = auth_response.user_id
+
+    response = requests.delete(
+        f"{BASE_URL}/posts/00000000-0000-0000-0000-000000000000",
+        json={"userId": str(user_id)},
+    )
+
+    assert response.status_code == 404
+    data = response.json()
+    assert data["error"] == "Post not found"
+
+
+def test_delete_posts_by_id_with_different_user_returns_403():
+    client = Client(base_url=BASE_URL)
+    auth_response1 = post_auth_login.sync(client=client)
+    user_id1 = auth_response1.user_id
+
+    expected_content = f"Test content {uuid4().hex[:8]}"
+    body = PostPostsBody(user_id=user_id1, content=expected_content)
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    auth_response2 = post_auth_login.sync(client=client)
+    user_id2 = auth_response2.user_id
+
+    response = requests.delete(
+        f"{BASE_URL}/posts/{post_id}",
+        json={"userId": str(user_id2)},
+    )
+
+    assert response.status_code == 403
+    data = response.json()
+    assert data["error"] == "User is not the post author"
