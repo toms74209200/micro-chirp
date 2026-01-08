@@ -45,6 +45,18 @@ sealed interface PostRetrievalResult {
     ) : PostRetrievalResult
 }
 
+sealed interface PostDeletionResult {
+    data object Success : PostDeletionResult
+
+    data object NotFound : PostDeletionResult
+
+    data object Forbidden : PostDeletionResult
+
+    data class DataAccessFailure(
+        val exception: Exception,
+    ) : PostDeletionResult
+}
+
 class ValidationException(
     message: String,
 ) : Exception(message)
@@ -129,5 +141,41 @@ class PostService(
             isLikedByCurrentUser = currentUserId?.let { false },
             isRepostedByCurrentUser = currentUserId?.let { false },
         )
+    }
+
+    @WithSpan
+    fun deletePost(
+        postId: UUID,
+        userId: UUID,
+    ): PostDeletionResult {
+        val events =
+            try {
+                postEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
+            } catch (e: DataAccessException) {
+                return PostDeletionResult.DataAccessFailure(e)
+            }
+
+        val aggregatedPost =
+            aggregatePostEvents(events, objectMapper)
+                ?: return PostDeletionResult.NotFound
+
+        if (aggregatedPost.userId != userId) {
+            return PostDeletionResult.Forbidden
+        }
+
+        return try {
+            postEventRepository.save(
+                PostEvent(
+                    eventId = UUID.randomUUID(),
+                    postId = postId,
+                    eventType = PostEventType.POST_DELETED.value,
+                    eventData = objectMapper.writeValueAsString(mapOf("userId" to userId.toString())),
+                    occurredAt = Instant.now(),
+                ),
+            )
+            PostDeletionResult.Success
+        } catch (e: DataAccessException) {
+            PostDeletionResult.DataAccessFailure(e)
+        }
     }
 }
