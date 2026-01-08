@@ -126,4 +126,74 @@ class PostServiceTest {
         assertThat(success.isLikedByCurrentUser).isFalse()
         assertThat(success.isRepostedByCurrentUser).isFalse()
     }
+
+    @Test
+    fun `when getPost with deleted post then returns NotFound`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val content = "Test post content"
+        val createResult = postService.createPost(userId, content) as PostCreationResult.Success
+        postService.deletePost(createResult.postId, userId)
+
+        val result = postService.getPost(createResult.postId, null)
+
+        assertThat(result).isInstanceOf(PostRetrievalResult.NotFound::class.java)
+    }
+
+    @Test
+    fun `when deletePost with valid request then returns Success and creates delete event`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val content = "Test post content"
+        val createResult = postService.createPost(userId, content) as PostCreationResult.Success
+
+        val result = postService.deletePost(createResult.postId, userId)
+
+        assertThat(result).isInstanceOf(PostDeletionResult.Success::class.java)
+        val events = postEventRepository.findByPostIdOrderByOccurredAtAsc(createResult.postId)
+        assertThat(events).hasSize(2)
+        assertThat(events[0].eventType).isEqualTo("post_created")
+        assertThat(events[1].eventType).isEqualTo("post_deleted")
+        assertThat(events[1].postId).isEqualTo(createResult.postId)
+    }
+
+    @Test
+    fun `when deletePost with non-existent postId then returns NotFound`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val nonExistentPostId = UUID.randomUUID()
+
+        val result = postService.deletePost(nonExistentPostId, userId)
+
+        assertThat(result).isInstanceOf(PostDeletionResult.NotFound::class.java)
+    }
+
+    @Test
+    fun `when deletePost with different user then returns Forbidden`() {
+        val authorId = UUID.randomUUID()
+        val otherId = UUID.randomUUID()
+        userRepository.save(User(authorId, Instant.now()))
+        userRepository.save(User(otherId, Instant.now()))
+        val content = "Test post content"
+        val createResult = postService.createPost(authorId, content) as PostCreationResult.Success
+
+        val result = postService.deletePost(createResult.postId, otherId)
+
+        assertThat(result).isInstanceOf(PostDeletionResult.Forbidden::class.java)
+        val events = postEventRepository.findByPostIdOrderByOccurredAtAsc(createResult.postId)
+        assertThat(events).hasSize(1)
+    }
+
+    @Test
+    fun `when deletePost with already deleted post then returns NotFound`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val content = "Test post content"
+        val createResult = postService.createPost(userId, content) as PostCreationResult.Success
+        postService.deletePost(createResult.postId, userId)
+
+        val result = postService.deletePost(createResult.postId, userId)
+
+        assertThat(result).isInstanceOf(PostDeletionResult.NotFound::class.java)
+    }
 }

@@ -69,6 +69,25 @@ class PostController(
             }
         }
 
+    override fun deletePostsById(
+        postId: UUID,
+        deletePostsByIdRequest: com.example.model.DeletePostsByIdRequest,
+    ): ResponseEntity<Unit> =
+        when (val result = postService.deletePost(postId, deletePostsByIdRequest.userId)) {
+            is PostDeletionResult.Success -> {
+                ResponseEntity.noContent().build()
+            }
+            is PostDeletionResult.NotFound -> {
+                throw PostNotFoundException("Post not found")
+            }
+            is PostDeletionResult.Forbidden -> {
+                throw PostDeletionForbiddenException("User is not the post author")
+            }
+            is PostDeletionResult.DataAccessFailure -> {
+                throw result.exception
+            }
+        }
+
     @ExceptionHandler(ValidationException::class)
     fun handleValidationException(e: ValidationException): ResponseEntity<PostPosts400Response> {
         logger.info("Validation error: {}", e.message)
@@ -82,6 +101,12 @@ class PostController(
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(mapOf("error" to (e.message ?: "")))
     }
 
+    @ExceptionHandler(PostDeletionForbiddenException::class)
+    fun handlePostDeletionForbiddenException(e: PostDeletionForbiddenException): ResponseEntity<Map<String, String>> {
+        logger.info("Post deletion forbidden: {}", e.message)
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(mapOf("error" to (e.message ?: "")))
+    }
+
     @ExceptionHandler(Exception::class)
     fun handleException(e: Exception): ResponseEntity<Void> {
         logger.warn("An unexpected error occurred", e)
@@ -90,5 +115,9 @@ class PostController(
 }
 
 class PostNotFoundException(
+    message: String,
+) : Exception(message)
+
+class PostDeletionForbiddenException(
     message: String,
 ) : Exception(message)
