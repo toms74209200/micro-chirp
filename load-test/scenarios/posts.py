@@ -45,3 +45,26 @@ class GetPostAPI(HttpUser):
     @task
     def get_post(self):
         self.client.get(f"/posts/{self.post_id}")
+
+
+class DeletePostAPI(HttpUser):
+    """Test DELETE /posts/{postId} API"""
+
+    wait_time = between(1, 5)
+
+    def on_start(self):
+        client = Client(base_url=self.host)
+        auth_response = post_auth_login.sync(client=client)
+        self.user_id = auth_response.user_id
+
+    @task
+    def delete_post(self):
+        client = Client(base_url=self.host)
+        body = PostPostsBody(user_id=self.user_id, content=f"Test post for DELETE {random_string(10)}")
+        post_response = post_posts.sync(client=client, body=body)
+        post_id = str(post_response.post_id)
+
+        self.client.delete(
+            f"/posts/{post_id}",
+            json={"userId": str(self.user_id)},
+        )

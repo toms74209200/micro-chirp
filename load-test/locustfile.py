@@ -1,3 +1,3 @@
-from scenarios.posts import CreatePostAPI, GetPostAPI
+from scenarios.posts import CreatePostAPI, GetPostAPI, DeletePostAPI
 
-__all__ = ["CreatePostAPI", "GetPostAPI"]
+__all__ = ["CreatePostAPI", "GetPostAPI", "DeletePostAPI"]
