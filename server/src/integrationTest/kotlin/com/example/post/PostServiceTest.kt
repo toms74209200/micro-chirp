@@ -3,6 +3,9 @@ package com.example.post
 import com.example.TestcontainersConfiguration
 import com.example.auth.User
 import com.example.auth.UserRepository
+import com.example.like.LikeEvent
+import com.example.like.LikeEventRepository
+import com.example.like.LikeEventType
 import org.apache.commons.lang3.RandomStringUtils
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -23,6 +26,9 @@ class PostServiceTest {
 
     @Autowired
     private lateinit var userRepository: UserRepository
+
+    @Autowired
+    private lateinit var likeEventRepository: LikeEventRepository
 
     @Test
     fun `when createPost with valid content then returns Success with post details`() {
@@ -195,5 +201,31 @@ class PostServiceTest {
         val result = postService.deletePost(createResult.postId, userId)
 
         assertThat(result).isInstanceOf(PostDeletionResult.NotFound::class.java)
+    }
+
+    @Test
+    fun `getPost with liked post by current user returns likeCount and isLikedByCurrentUser true`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val content = "Test post content"
+        val createResult = postService.createPost(userId, content) as PostCreationResult.Success
+        val postId = createResult.postId
+
+        val likeEvent =
+            LikeEvent(
+                eventId = UUID.randomUUID(),
+                postId = postId,
+                userId = userId,
+                eventType = LikeEventType.LIKED.value,
+                occurredAt = Instant.now(),
+            )
+        likeEventRepository.save(likeEvent)
+
+        val result = postService.getPost(postId, userId)
+
+        assertThat(result).isInstanceOf(PostRetrievalResult.Success::class.java)
+        val success = result as PostRetrievalResult.Success
+        assertThat(success.likeCount).isEqualTo(1)
+        assertThat(success.isLikedByCurrentUser).isTrue()
     }
 }
