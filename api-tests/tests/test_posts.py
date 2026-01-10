@@ -211,3 +211,28 @@ def test_delete_posts_by_id_with_different_user_returns_403():
     assert response.status_code == 403
     data = response.json()
     assert data["error"] == "User is not the post author"
+
+
+def test_get_post_with_liked_post_returns_like_info():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    expected_content = f"Test content {uuid4().hex[:8]}"
+    body = PostPostsBody(user_id=auth_response.user_id, content=expected_content)
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    like_response = requests.post(
+        f"{BASE_URL}/posts/{post_id}/likes",
+        json={"userId": user_id},
+    )
+    assert like_response.status_code == 201
+
+    response = requests.get(f"{BASE_URL}/posts/{post_id}", params={"userId": user_id})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["likeCount"] == 1
+    assert data["isLikedByCurrentUser"] is True
