@@ -65,6 +65,7 @@ class ValidationException(
 class PostService(
     private val postEventRepository: PostEventRepository,
     private val userRepository: com.example.auth.UserRepository,
+    private val likeEventRepository: com.example.like.LikeEventRepository,
     private val objectMapper: ObjectMapper,
 ) {
     @WithSpan
@@ -129,16 +130,27 @@ class PostService(
             aggregatePostEvents(events, objectMapper)
                 ?: return PostRetrievalResult.NotFound
 
+        val likeEvents =
+            try {
+                likeEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
+            } catch (e: DataAccessException) {
+                return PostRetrievalResult.DataAccessFailure(e)
+            }
+
+        val aggregatedLikes = com.example.like.aggregateLikeEvents(likeEvents)
+        val likeCount = aggregatedLikes.likeCount
+        val isLikedByCurrentUser = currentUserId?.let { it in aggregatedLikes.likedUserIds }
+
         return PostRetrievalResult.Success(
             postId = postId,
             userId = aggregatedPost.userId,
             content = aggregatedPost.content,
             createdAt = aggregatedPost.createdAt,
-            likeCount = 0,
+            likeCount = likeCount,
             repostCount = 0,
             replyCount = 0,
             viewCount = 0,
-            isLikedByCurrentUser = currentUserId?.let { false },
+            isLikedByCurrentUser = isLikedByCurrentUser,
             isRepostedByCurrentUser = currentUserId?.let { false },
         )
     }
