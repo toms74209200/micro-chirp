@@ -1,10 +1,13 @@
 import os
+from uuid import UUID
 from locust import HttpUser, task, between, events
 
 from lib.utils import random_string, long_tail_choice
 from openapi_gen.micro_chirp_api_client.api.auth import post_auth_login
+from openapi_gen.micro_chirp_api_client.api.likes import post_likes
 from openapi_gen.micro_chirp_api_client.api.posts import post_posts
 from openapi_gen.micro_chirp_api_client.client import Client
+from openapi_gen.micro_chirp_api_client.models.post_likes_body import PostLikesBody
 from openapi_gen.micro_chirp_api_client.models.post_posts_body import PostPostsBody
 
 
@@ -40,6 +43,31 @@ class LikePostAPI(HttpUser):
         )
 
 
+class UnlikePostAPI(HttpUser):
+    """Test DELETE /posts/{postId}/likes API"""
+
+    wait_time = between(1, 5)
+
+    def on_start(self):
+        self.api_client = Client(base_url=self.host)
+        auth_response = post_auth_login.sync(client=self.api_client)
+        self.user_id = auth_response.user_id
+
+        body = PostPostsBody(user_id=auth_response.user_id, content=f"Test post for unlike {random_string(10)}")
+        post_response = post_posts.sync(client=self.api_client, body=body)
+        self.post_id = post_response.post_id
+
+    @task
+    def unlike_post(self):
+        body = PostLikesBody(user_id=self.user_id)
+        post_likes.sync(post_id=self.post_id, client=self.api_client, body=body)
+
+        self.client.delete(
+            f"/posts/{self.post_id}/likes",
+            json={"userId": str(self.user_id)},
+        )
+
+
 @events.test_start.add_listener
 def on_test_start(environment, **kwargs):
     """Create a shared pool of posts at the start of the test"""
@@ -54,9 +82,7 @@ def on_test_start(environment, **kwargs):
 
     for i in range(pool_size):
         body = PostPostsBody(
-            user_id=user_id,
-            content=f"Shared post for like load test {i+1}/{pool_size} {random_string(10)}"
+            user_id=user_id, content=f"Shared post for like load test {i + 1}/{pool_size} {random_string(10)}"
         )
         post_response = post_posts.sync(client=client, body=body)
         LikePostAPI.post_pool.append(str(post_response.post_id))
-
