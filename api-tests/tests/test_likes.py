@@ -53,3 +53,41 @@ def test_post_likes_with_nonexistent_post_returns_404():
     assert data["error"] == "Post not found"
 
 
+def test_delete_likes_with_valid_request_returns_204():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    expected_content = f"Test content {uuid4().hex[:8]}"
+    body = PostPostsBody(user_id=auth_response.user_id, content=expected_content)
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    like_response = requests.post(
+        f"{BASE_URL}/posts/{post_id}/likes",
+        json={"userId": user_id},
+    )
+    assert like_response.status_code == 201
+
+    response = requests.delete(
+        f"{BASE_URL}/posts/{post_id}/likes",
+        json={"userId": user_id},
+    )
+
+    assert response.status_code == 204
+
+
+def test_delete_likes_with_nonexistent_post_returns_404():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    response = requests.delete(
+        f"{BASE_URL}/posts/00000000-0000-0000-0000-000000000000/likes",
+        json={"userId": user_id},
+    )
+
+    assert response.status_code == 404
+    data = response.json()
+    assert data["error"] == "Post not found"
