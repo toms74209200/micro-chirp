@@ -1,6 +1,7 @@
 package com.example.like
 
 import com.example.api.LikesApi
+import com.example.model.DeleteLikesRequest
 import com.example.model.PostLikes201Response
 import com.example.model.PostLikesRequest
 import org.slf4j.LoggerFactory
@@ -36,6 +37,22 @@ class LikeController(
                 throw LikePostNotFoundException("Post not found")
             }
             is LikeResult.DataAccessFailure -> {
+                throw result.exception
+            }
+        }
+
+    override fun deleteLikes(
+        postId: UUID,
+        deleteLikesRequest: DeleteLikesRequest,
+    ): ResponseEntity<Unit> =
+        when (val result = likeService.unlikePost(postId, deleteLikesRequest.userId)) {
+            is UnlikeResult.Success -> {
+                ResponseEntity.noContent().build()
+            }
+            is UnlikeResult.PostNotFound -> {
+                throw LikePostNotFoundException("Post not found")
+            }
+            is UnlikeResult.DataAccessFailure -> {
                 throw result.exception
             }
         }

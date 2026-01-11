@@ -23,6 +23,16 @@ sealed interface LikeResult {
     ) : LikeResult
 }
 
+sealed interface UnlikeResult {
+    data object Success : UnlikeResult
+
+    data object PostNotFound : UnlikeResult
+
+    data class DataAccessFailure(
+        val exception: Exception,
+    ) : UnlikeResult
+}
+
 class LikePostNotFoundException(
     message: String,
 ) : Exception(message)
@@ -45,15 +55,15 @@ class LikeService(
                 return LikeResult.DataAccessFailure(e)
             }
 
-        val aggregatedPost = aggregatePostEvents(postEvents, objectMapper)
-            ?: return LikeResult.PostNotFound
+        val aggregatedPost =
+            aggregatePostEvents(postEvents, objectMapper)
+                ?: return LikeResult.PostNotFound
 
-        val eventId = UUID.randomUUID()
         val occurredAt = Instant.now()
 
         val likeEvent =
             LikeEvent(
-                eventId = eventId,
+                eventId = UUID.randomUUID(),
                 postId = postId,
                 userId = userId,
                 eventType = LikeEventType.LIKED.value,
@@ -69,6 +79,51 @@ class LikeService(
             )
         } catch (e: DataAccessException) {
             LikeResult.DataAccessFailure(e)
+        }
+    }
+
+    @WithSpan
+    fun unlikePost(
+        postId: UUID,
+        userId: UUID,
+    ): UnlikeResult {
+        val postEvents =
+            try {
+                postEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
+            } catch (e: DataAccessException) {
+                return UnlikeResult.DataAccessFailure(e)
+            }
+
+        aggregatePostEvents(postEvents, objectMapper)
+            ?: return UnlikeResult.PostNotFound
+
+        val likeEvents =
+            try {
+                likeEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
+            } catch (e: DataAccessException) {
+                return UnlikeResult.DataAccessFailure(e)
+            }
+
+        val userLikeStatus = UserLikeStatus.fromEvents(likeEvents, userId)
+
+        if (userLikeStatus is UserLikeStatus.NotLiked) {
+            return UnlikeResult.Success
+        }
+
+        val unlikeEvent =
+            LikeEvent(
+                eventId = UUID.randomUUID(),
+                postId = postId,
+                userId = userId,
+                eventType = LikeEventType.UNLIKED.value,
+                occurredAt = Instant.now(),
+            )
+
+        return try {
+            likeEventRepository.save(unlikeEvent)
+            UnlikeResult.Success
+        } catch (e: DataAccessException) {
+            UnlikeResult.DataAccessFailure(e)
         }
     }
 }
