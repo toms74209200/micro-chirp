@@ -61,16 +61,29 @@ class LikeServiceTest {
     }
 
     @Test
-    fun `likePost with deleted post returns PostNotFound`() {
+    fun `unlikePost with valid request returns Success and creates unlike event`() {
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
         val postResult = postService.createPost(userId, "Test post") as PostCreationResult.Success
         val postId = postResult.postId
+        likeService.likePost(postId, userId)
 
-        postService.deletePost(postId, userId)
+        val result = likeService.unlikePost(postId, userId)
 
-        val result = likeService.likePost(postId, userId)
+        assertThat(result).isInstanceOf(UnlikeResult.Success::class.java)
+        val events = likeEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
+        assertThat(events).hasSize(2)
+        assertThat(events[0].eventType).isEqualTo(LikeEventType.LIKED.value)
+        assertThat(events[1].eventType).isEqualTo(LikeEventType.UNLIKED.value)
+    }
 
-        assertThat(result).isInstanceOf(LikeResult.PostNotFound::class.java)
+    @Test
+    fun `unlikePost with non-existent post returns PostNotFound`() {
+        val userId = UUID.randomUUID()
+        val nonExistentPostId = UUID.randomUUID()
+
+        val result = likeService.unlikePost(nonExistentPostId, userId)
+
+        assertThat(result).isInstanceOf(UnlikeResult.PostNotFound::class.java)
     }
 }
