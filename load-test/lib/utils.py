@@ -2,7 +2,7 @@ import random
 import string
 from typing import TypeVar, Sequence
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def random_string(length: int) -> str:
