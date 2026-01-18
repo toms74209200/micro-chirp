@@ -12,10 +12,15 @@ fun aggregateRepostEvents(events: List<RepostEvent>): AggregatedReposts {
         currentState + (event.userId to true)
     }
 
+    val applyUnreposted: (Map<UUID, Boolean>, RepostEvent) -> Map<UUID, Boolean> = { currentState, event ->
+        currentState + (event.userId to false)
+    }
+
     val userRepostStatus =
         events.fold(emptyMap<UUID, Boolean>()) { acc, event ->
             when (RepostEventType.fromString(event.eventType)) {
                 RepostEventType.REPOSTED -> applyReposted(acc, event)
+                RepostEventType.UNREPOSTED -> applyUnreposted(acc, event)
                 null -> acc
             }
         }

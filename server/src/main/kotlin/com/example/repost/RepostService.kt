@@ -23,6 +23,16 @@ sealed interface RepostResult {
     ) : RepostResult
 }
 
+sealed interface UnrepostResult {
+    data object Success : UnrepostResult
+
+    data object PostNotFound : UnrepostResult
+
+    data class DataAccessFailure(
+        val exception: Exception,
+    ) : UnrepostResult
+}
+
 class RepostPostNotFoundException(
     message: String,
 ) : Exception(message)
@@ -69,6 +79,51 @@ class RepostService(
             )
         } catch (e: DataAccessException) {
             RepostResult.DataAccessFailure(e)
+        }
+    }
+
+    @WithSpan
+    fun unrepostPost(
+        postId: UUID,
+        userId: UUID,
+    ): UnrepostResult {
+        val postEvents =
+            try {
+                postEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
+            } catch (e: DataAccessException) {
+                return UnrepostResult.DataAccessFailure(e)
+            }
+
+        aggregatePostEvents(postEvents, objectMapper)
+            ?: return UnrepostResult.PostNotFound
+
+        val repostEvents =
+            try {
+                repostEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
+            } catch (e: DataAccessException) {
+                return UnrepostResult.DataAccessFailure(e)
+            }
+
+        val userRepostStatus = UserRepostStatus.fromEvents(repostEvents, userId)
+
+        if (userRepostStatus is UserRepostStatus.NotReposted) {
+            return UnrepostResult.Success
+        }
+
+        val unrepostEvent =
+            RepostEvent(
+                eventId = UUID.randomUUID(),
+                postId = postId,
+                userId = userId,
+                eventType = RepostEventType.UNREPOSTED.value,
+                occurredAt = Instant.now(),
+            )
+
+        return try {
+            repostEventRepository.save(unrepostEvent)
+            UnrepostResult.Success
+        } catch (e: DataAccessException) {
+            UnrepostResult.DataAccessFailure(e)
         }
     }
 }

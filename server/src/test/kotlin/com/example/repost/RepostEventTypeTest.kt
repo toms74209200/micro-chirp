@@ -13,13 +13,18 @@ class RepostEventTypeTest :
             result shouldBe RepostEventType.REPOSTED
         }
 
+        test("when fromString with 'unreposted' then returns UNREPOSTED") {
+            val result = RepostEventType.fromString("unreposted")
+            result shouldBe RepostEventType.UNREPOSTED
+        }
+
         test("when fromString with arbitrary strings then returns null except exact match") {
             checkAll(Arb.string()) { value ->
                 val result = RepostEventType.fromString(value)
-                if (value == "reposted") {
-                    result shouldBe RepostEventType.REPOSTED
-                } else {
-                    result shouldBe null
+                when (value) {
+                    "reposted" -> result shouldBe RepostEventType.REPOSTED
+                    "unreposted" -> result shouldBe RepostEventType.UNREPOSTED
+                    else -> result shouldBe null
                 }
             }
         }
@@ -28,10 +33,10 @@ class RepostEventTypeTest :
             checkAll(Arb.string(), Arb.string()) { prefix, suffix ->
                 val value = prefix + "reposted" + suffix
                 val result = RepostEventType.fromString(value)
-                if (value == "reposted") {
-                    result shouldBe RepostEventType.REPOSTED
-                } else {
-                    result shouldBe null
+                when (value) {
+                    "reposted" -> result shouldBe RepostEventType.REPOSTED
+                    "unreposted" -> result shouldBe RepostEventType.UNREPOSTED
+                    else -> result shouldBe null
                 }
             }
         }

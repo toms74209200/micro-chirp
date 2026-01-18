@@ -48,6 +48,28 @@ class AggregatedRepostsTest :
                 result.repostedUserIds shouldBe setOf(userId)
             }
         }
+
+        test("when aggregateRepostEvents with REPOSTED then UNREPOSTED then returns 0 reposts") {
+            checkAll(arbRepostThenUnrepostEvents()) { events ->
+                val result = aggregateRepostEvents(events)
+                result.repostCount shouldBe 0
+                result.repostedUserIds shouldBe emptySet()
+            }
+        }
+
+        test("when aggregateRepostEvents with multiple users one UNREPOSTED then returns correct count") {
+            checkAll(arbMultipleUsersOneUnreposted()) { events ->
+                val unrepostedUserId = events.find { it.eventType == RepostEventType.UNREPOSTED.value }?.userId
+                val expectedUserIds =
+                    events
+                        .filter { it.eventType == RepostEventType.REPOSTED.value }
+                        .map { it.userId }
+                        .toSet() - setOfNotNull(unrepostedUserId)
+                val result = aggregateRepostEvents(events)
+                result.repostCount shouldBe expectedUserIds.size
+                result.repostedUserIds shouldBe expectedUserIds
+            }
+        }
     })
 
 private fun arbRepostedEvent(): Arb<RepostEvent> =
@@ -103,6 +125,60 @@ private fun arbSameUserMultipleReposts(): Arb<List<RepostEvent>> =
                 userId = userId,
                 eventType = RepostEventType.REPOSTED.value,
                 occurredAt = time2,
+            ),
+        )
+    }
+
+private fun arbRepostThenUnrepostEvents(): Arb<List<RepostEvent>> =
+    Arb.bind(
+        Arb.uuid(),
+        Arb.uuid(),
+    ) { postId, userId ->
+        listOf(
+            RepostEvent(
+                eventId = UUID.randomUUID(),
+                postId = postId,
+                userId = userId,
+                eventType = RepostEventType.REPOSTED.value,
+                occurredAt = Instant.ofEpochSecond(0),
+            ),
+            RepostEvent(
+                eventId = UUID.randomUUID(),
+                postId = postId,
+                userId = userId,
+                eventType = RepostEventType.UNREPOSTED.value,
+                occurredAt = Instant.ofEpochSecond(1),
+            ),
+        )
+    }
+
+private fun arbMultipleUsersOneUnreposted(): Arb<List<RepostEvent>> =
+    Arb.bind(
+        Arb.uuid(),
+        Arb.uuid(),
+        Arb.uuid(),
+    ) { postId, userId1, userId2 ->
+        listOf(
+            RepostEvent(
+                eventId = UUID.randomUUID(),
+                postId = postId,
+                userId = userId1,
+                eventType = RepostEventType.REPOSTED.value,
+                occurredAt = Instant.ofEpochSecond(0),
+            ),
+            RepostEvent(
+                eventId = UUID.randomUUID(),
+                postId = postId,
+                userId = userId2,
+                eventType = RepostEventType.REPOSTED.value,
+                occurredAt = Instant.ofEpochSecond(1),
+            ),
+            RepostEvent(
+                eventId = UUID.randomUUID(),
+                postId = postId,
+                userId = userId1,
+                eventType = RepostEventType.UNREPOSTED.value,
+                occurredAt = Instant.ofEpochSecond(2),
             ),
         )
     }
