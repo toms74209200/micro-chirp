@@ -1,6 +1,7 @@
 package com.example.repost
 
 import com.example.api.RepostsApi
+import com.example.model.DeleteRepostsRequest
 import com.example.model.PostReposts201Response
 import com.example.model.PostRepostsRequest
 import org.slf4j.LoggerFactory
@@ -36,6 +37,22 @@ class RepostController(
                 throw RepostPostNotFoundException("Post not found")
             }
             is RepostResult.DataAccessFailure -> {
+                throw result.exception
+            }
+        }
+
+    override fun deleteReposts(
+        postId: UUID,
+        deleteRepostsRequest: DeleteRepostsRequest,
+    ): ResponseEntity<Unit> =
+        when (val result = repostService.unrepostPost(postId, deleteRepostsRequest.userId)) {
+            is UnrepostResult.Success -> {
+                ResponseEntity.noContent().build()
+            }
+            is UnrepostResult.PostNotFound -> {
+                throw RepostPostNotFoundException("Post not found")
+            }
+            is UnrepostResult.DataAccessFailure -> {
                 throw result.exception
             }
         }

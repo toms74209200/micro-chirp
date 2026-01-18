@@ -4,6 +4,7 @@ enum class RepostEventType(
     val value: String,
 ) {
     REPOSTED("reposted"),
+    UNREPOSTED("unreposted"),
     ;
 
     companion object {

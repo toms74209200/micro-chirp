@@ -33,6 +33,21 @@ class UserRepostStatusTest :
                 result shouldBe UserRepostStatus.NotReposted
             }
         }
+
+        test("when fromEvents with REPOSTED then UNREPOSTED events for user then returns NotReposted") {
+            checkAll(arbRepostThenUnrepostEvents()) { events ->
+                val userId = events.first().userId
+                val result = UserRepostStatus.fromEvents(events, userId)
+                result shouldBe UserRepostStatus.NotReposted
+            }
+        }
+
+        test("when fromEvents with single UNREPOSTED event for user then returns NotReposted") {
+            checkAll(arbRepostEvent(RepostEventType.UNREPOSTED)) { event ->
+                val result = UserRepostStatus.fromEvents(listOf(event), event.userId)
+                result shouldBe UserRepostStatus.NotReposted
+            }
+        }
     })
 
 private fun arbRepostEvent(eventType: RepostEventType): Arb<RepostEvent> =
@@ -72,5 +87,32 @@ private fun arbDifferentUserEvent(): Arb<Pair<RepostEvent, UUID>> =
                 )
             event to userId2
         }
+
+private fun arbRepostThenUnrepostEvents(): Arb<List<RepostEvent>> =
+    Arb.bind(
+        Arb.uuid(),
+        Arb.uuid(),
+        Arb.uuid(),
+        arbInstant(),
+        arbInstant(),
+    ) { eventId1, postId, userId, time1, time2 ->
+        val (earlierTime, laterTime) = if (time1 < time2) time1 to time2 else time2 to time1
+        listOf(
+            RepostEvent(
+                eventId = eventId1,
+                postId = postId,
+                userId = userId,
+                eventType = RepostEventType.REPOSTED.value,
+                occurredAt = earlierTime,
+            ),
+            RepostEvent(
+                eventId = UUID.randomUUID(),
+                postId = postId,
+                userId = userId,
+                eventType = RepostEventType.UNREPOSTED.value,
+                occurredAt = laterTime,
+            ),
+        )
+    }
 
 private fun arbInstant(): Arb<Instant> = Arb.long(0..253402300799L).map { Instant.ofEpochSecond(it) }

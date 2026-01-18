@@ -20,7 +20,8 @@ sealed interface UserRepostStatus {
 
             return when (lastEventType) {
                 RepostEventType.REPOSTED -> Reposted
-                else -> NotReposted
+                RepostEventType.UNREPOSTED -> NotReposted
+                null -> NotReposted
             }
         }
     }

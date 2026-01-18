@@ -59,4 +59,31 @@ class RepostServiceTest {
 
         assertThat(result).isInstanceOf(RepostResult.PostNotFound::class.java)
     }
+
+    @Test
+    fun `unrepostPost with valid request returns Success and creates unrepost event`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val postResult = postService.createPost(userId, "Test post") as PostCreationResult.Success
+        val postId = postResult.postId
+        repostService.repostPost(postId, userId)
+
+        val result = repostService.unrepostPost(postId, userId)
+
+        assertThat(result).isInstanceOf(UnrepostResult.Success::class.java)
+        val events = repostEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
+        assertThat(events).hasSize(2)
+        assertThat(events[0].eventType).isEqualTo(RepostEventType.REPOSTED.value)
+        assertThat(events[1].eventType).isEqualTo(RepostEventType.UNREPOSTED.value)
+    }
+
+    @Test
+    fun `unrepostPost with non-existent post returns PostNotFound`() {
+        val userId = UUID.randomUUID()
+        val nonExistentPostId = UUID.randomUUID()
+
+        val result = repostService.unrepostPost(nonExistentPostId, userId)
+
+        assertThat(result).isInstanceOf(UnrepostResult.PostNotFound::class.java)
+    }
 }
