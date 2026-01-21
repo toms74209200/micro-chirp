@@ -4,8 +4,10 @@ from locust import HttpUser, task, between, events
 from lib.utils import random_string, long_tail_choice
 from openapi_gen.micro_chirp_api_client.api.auth import post_auth_login
 from openapi_gen.micro_chirp_api_client.api.posts import post_posts
+from openapi_gen.micro_chirp_api_client.api.reposts import post_reposts
 from openapi_gen.micro_chirp_api_client.client import Client
 from openapi_gen.micro_chirp_api_client.models.post_posts_body import PostPostsBody
+from openapi_gen.micro_chirp_api_client.models.post_reposts_body import PostRepostsBody
 
 
 class RepostPostAPI(HttpUser):
@@ -37,6 +39,31 @@ class RepostPostAPI(HttpUser):
         self.client.post(
             f"/posts/{post_id}/reposts",
             json={"userId": self.user_id},
+        )
+
+
+class UnrepostPostAPI(HttpUser):
+    """Test DELETE /posts/{postId}/reposts API"""
+
+    wait_time = between(1, 5)
+
+    def on_start(self):
+        self.api_client = Client(base_url=self.host)
+        auth_response = post_auth_login.sync(client=self.api_client)
+        self.user_id = auth_response.user_id
+
+        body = PostPostsBody(user_id=auth_response.user_id, content=f"Test post for unrepost {random_string(10)}")
+        post_response = post_posts.sync(client=self.api_client, body=body)
+        self.post_id = post_response.post_id
+
+    @task
+    def unrepost_post(self):
+        body = PostRepostsBody(user_id=self.user_id)
+        post_reposts.sync(post_id=self.post_id, client=self.api_client, body=body)
+
+        self.client.delete(
+            f"/posts/{self.post_id}/reposts",
+            json={"userId": str(self.user_id)},
         )
 
 
