@@ -17,6 +17,8 @@ class PostEvent(
     val eventId: UUID,
     @Column(name = "post_id", nullable = false)
     val postId: UUID,
+    @Column(name = "reply_to_post_id", nullable = true)
+    val replyToPostId: UUID? = null,
     @Column(name = "event_type", nullable = false, length = 50)
     val eventType: String,
     @Column(name = "event_data", nullable = false, columnDefinition = "jsonb")
