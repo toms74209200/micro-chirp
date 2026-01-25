@@ -1,5 +1,6 @@
 package com.example.like
 
+import com.example.auth.UserRepository
 import com.example.post.PostEventRepository
 import com.example.post.aggregatePostEvents
 import io.opentelemetry.instrumentation.annotations.WithSpan
@@ -16,9 +17,7 @@ sealed interface LikeResult {
         val likedAt: Instant,
     ) : LikeResult
 
-    data object PostNotFound : LikeResult
-
-    data class DataAccessFailure(
+    data class Failure(
         val exception: Exception,
     ) : LikeResult
 }
@@ -26,9 +25,7 @@ sealed interface LikeResult {
 sealed interface UnlikeResult {
     data object Success : UnlikeResult
 
-    data object PostNotFound : UnlikeResult
-
-    data class DataAccessFailure(
+    data class Failure(
         val exception: Exception,
     ) : UnlikeResult
 }
@@ -37,10 +34,15 @@ class LikePostNotFoundException(
     message: String,
 ) : Exception(message)
 
+class LikeUserNotFoundException(
+    message: String,
+) : Exception(message)
+
 @Service
 class LikeService(
     private val likeEventRepository: LikeEventRepository,
     private val postEventRepository: PostEventRepository,
+    private val userRepository: UserRepository,
     private val objectMapper: ObjectMapper,
 ) {
     @WithSpan
@@ -48,16 +50,20 @@ class LikeService(
         postId: UUID,
         userId: UUID,
     ): LikeResult {
+        if (!userRepository.existsById(userId)) {
+            return LikeResult.Failure(LikeUserNotFoundException("User not found"))
+        }
+
         val postEvents =
             try {
                 postEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
             } catch (e: DataAccessException) {
-                return LikeResult.DataAccessFailure(e)
+                return LikeResult.Failure(e)
             }
 
         val aggregatedPost =
             aggregatePostEvents(postEvents, objectMapper)
-                ?: return LikeResult.PostNotFound
+                ?: return LikeResult.Failure(LikePostNotFoundException("Post not found"))
 
         val occurredAt = Instant.now()
 
@@ -78,7 +84,7 @@ class LikeService(
                 likedAt = occurredAt,
             )
         } catch (e: DataAccessException) {
-            LikeResult.DataAccessFailure(e)
+            LikeResult.Failure(e)
         }
     }
 
@@ -87,21 +93,25 @@ class LikeService(
         postId: UUID,
         userId: UUID,
     ): UnlikeResult {
+        if (!userRepository.existsById(userId)) {
+            return UnlikeResult.Failure(LikeUserNotFoundException("User not found"))
+        }
+
         val postEvents =
             try {
                 postEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
             } catch (e: DataAccessException) {
-                return UnlikeResult.DataAccessFailure(e)
+                return UnlikeResult.Failure(e)
             }
 
         aggregatePostEvents(postEvents, objectMapper)
-            ?: return UnlikeResult.PostNotFound
+            ?: return UnlikeResult.Failure(LikePostNotFoundException("Post not found"))
 
         val likeEvents =
             try {
                 likeEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
             } catch (e: DataAccessException) {
-                return UnlikeResult.DataAccessFailure(e)
+                return UnlikeResult.Failure(e)
             }
 
         val userLikeStatus = UserLikeStatus.fromEvents(likeEvents, userId)
@@ -123,7 +133,7 @@ class LikeService(
             likeEventRepository.save(unlikeEvent)
             UnlikeResult.Success
         } catch (e: DataAccessException) {
-            UnlikeResult.DataAccessFailure(e)
+            UnlikeResult.Failure(e)
         }
     }
 }

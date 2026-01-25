@@ -206,6 +206,16 @@ paths:
       responses:
         '204':
           description: Post deleted successfully
+        '400':
+          description: Bad request (e.g., user not found)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
         '403':
           description: Forbidden (user is not the post author)
           content:
@@ -490,6 +500,16 @@ paths:
                   - postId
                   - userId
                   - likedAt
+        '400':
+          description: Bad request (e.g., user not found)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
         '404':
           description: Post not found
           content:
@@ -531,6 +551,16 @@ paths:
       responses:
         '204':
           description: Post unliked successfully
+        '400':
+          description: Bad request (e.g., user not found)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
         '404':
           description: Post not found
           content:
@@ -594,6 +624,16 @@ paths:
                   - postId
                   - userId
                   - repostedAt
+        '400':
+          description: Bad request (e.g., user not found)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
         '404':
           description: Post not found
           content:
@@ -635,6 +675,16 @@ paths:
       responses:
         '204':
           description: Post unreposted successfully
+        '400':
+          description: Bad request (e.g., user not found)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
         '404':
           description: Post not found
           content:
@@ -907,6 +957,16 @@ paths:
                   - postId
                   - userId
                   - viewedAt
+        '400':
+          description: Bad request (e.g., user not found)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
         '404':
           description: Post not found
           content:

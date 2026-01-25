@@ -3,7 +3,6 @@ package com.example.post
 import com.example.api.PostsApi
 import com.example.model.GetPostsById200Response
 import com.example.model.PostPosts201Response
-import com.example.model.PostPosts400Response
 import com.example.model.PostPostsRequest
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -32,10 +31,7 @@ class PostController(
                     )
                 ResponseEntity.status(HttpStatus.CREATED).body(response)
             }
-            is PostCreationResult.ValidationFailure -> {
-                throw ValidationException(result.errorMessage)
-            }
-            is PostCreationResult.DataAccessFailure -> {
+            is PostCreationResult.Failure -> {
                 throw result.exception
             }
         }
@@ -61,10 +57,7 @@ class PostController(
                     )
                 ResponseEntity.ok(response)
             }
-            is PostRetrievalResult.NotFound -> {
-                throw PostNotFoundException("Post not found")
-            }
-            is PostRetrievalResult.DataAccessFailure -> {
+            is PostRetrievalResult.Failure -> {
                 throw result.exception
             }
         }
@@ -77,22 +70,21 @@ class PostController(
             is PostDeletionResult.Success -> {
                 ResponseEntity.noContent().build()
             }
-            is PostDeletionResult.NotFound -> {
-                throw PostNotFoundException("Post not found")
-            }
-            is PostDeletionResult.Forbidden -> {
-                throw PostDeletionForbiddenException("User is not the post author")
-            }
-            is PostDeletionResult.DataAccessFailure -> {
+            is PostDeletionResult.Failure -> {
                 throw result.exception
             }
         }
 
-    @ExceptionHandler(ValidationException::class)
-    fun handleValidationException(e: ValidationException): ResponseEntity<PostPosts400Response> {
+    @ExceptionHandler(PostValidationException::class)
+    fun handlePostValidationException(e: PostValidationException): ResponseEntity<Map<String, String>> {
         logger.info("Validation error: {}", e.message)
-        val response = PostPosts400Response(error = e.message)
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(mapOf("error" to (e.message ?: "")))
+    }
+
+    @ExceptionHandler(PostUserNotFoundException::class)
+    fun handlePostUserNotFoundException(e: PostUserNotFoundException): ResponseEntity<Map<String, String>> {
+        logger.info("User not found: {}", e.message)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(mapOf("error" to (e.message ?: "")))
     }
 
     @ExceptionHandler(PostNotFoundException::class)
@@ -113,11 +105,3 @@ class PostController(
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build()
     }
 }
-
-class PostNotFoundException(
-    message: String,
-) : Exception(message)
-
-class PostDeletionForbiddenException(
-    message: String,
-) : Exception(message)

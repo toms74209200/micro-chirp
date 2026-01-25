@@ -33,10 +33,7 @@ class RepostController(
                     )
                 ResponseEntity.status(HttpStatus.CREATED).body(response)
             }
-            is RepostResult.PostNotFound -> {
-                throw RepostPostNotFoundException("Post not found")
-            }
-            is RepostResult.DataAccessFailure -> {
+            is RepostResult.Failure -> {
                 throw result.exception
             }
         }
@@ -49,13 +46,16 @@ class RepostController(
             is UnrepostResult.Success -> {
                 ResponseEntity.noContent().build()
             }
-            is UnrepostResult.PostNotFound -> {
-                throw RepostPostNotFoundException("Post not found")
-            }
-            is UnrepostResult.DataAccessFailure -> {
+            is UnrepostResult.Failure -> {
                 throw result.exception
             }
         }
+
+    @ExceptionHandler(RepostUserNotFoundException::class)
+    fun handleRepostUserNotFoundException(e: RepostUserNotFoundException): ResponseEntity<Map<String, String>> {
+        logger.info("User not found: {}", e.message)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(mapOf("error" to (e.message ?: "")))
+    }
 
     @ExceptionHandler(RepostPostNotFoundException::class)
     fun handleRepostPostNotFoundException(e: RepostPostNotFoundException): ResponseEntity<Map<String, String>> {
