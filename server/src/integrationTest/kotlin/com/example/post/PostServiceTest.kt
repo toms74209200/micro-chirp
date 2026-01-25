@@ -52,39 +52,39 @@ class PostServiceTest {
     }
 
     @Test
-    fun `when createPost with blank content then returns ValidationFailure`() {
+    fun `when createPost with blank content then returns Failure with PostValidationException`() {
         val userId = UUID.randomUUID()
         val content = "   "
 
         val result = postService.createPost(userId, content)
 
-        assertThat(result).isInstanceOf(PostCreationResult.ValidationFailure::class.java)
-        val failure = result as PostCreationResult.ValidationFailure
-        assertThat(failure.errorMessage).isEqualTo("Content is invalid")
+        assertThat(result).isInstanceOf(PostCreationResult.Failure::class.java)
+        val failure = result as PostCreationResult.Failure
+        assertThat(failure.exception).isInstanceOf(PostValidationException::class.java)
     }
 
     @Test
-    fun `when createPost with content exceeding 280 graphemes then returns ValidationFailure`() {
+    fun `when createPost with content exceeding 280 graphemes then returns Failure with PostValidationException`() {
         val userId = UUID.randomUUID()
         val content = RandomStringUtils.randomAlphanumeric(281)
 
         val result = postService.createPost(userId, content)
 
-        assertThat(result).isInstanceOf(PostCreationResult.ValidationFailure::class.java)
-        val failure = result as PostCreationResult.ValidationFailure
-        assertThat(failure.errorMessage).isEqualTo("Content is invalid")
+        assertThat(result).isInstanceOf(PostCreationResult.Failure::class.java)
+        val failure = result as PostCreationResult.Failure
+        assertThat(failure.exception).isInstanceOf(PostValidationException::class.java)
     }
 
     @Test
-    fun `when createPost with non-existent userId then returns ValidationFailure`() {
+    fun `when createPost with non-existent userId then returns Failure with PostUserNotFoundException`() {
         val userId = UUID.randomUUID()
         val content = RandomStringUtils.randomAlphanumeric(50)
 
         val result = postService.createPost(userId, content)
 
-        assertThat(result).isInstanceOf(PostCreationResult.ValidationFailure::class.java)
-        val failure = result as PostCreationResult.ValidationFailure
-        assertThat(failure.errorMessage).isEqualTo("User not found")
+        assertThat(result).isInstanceOf(PostCreationResult.Failure::class.java)
+        val failure = result as PostCreationResult.Failure
+        assertThat(failure.exception).isInstanceOf(PostUserNotFoundException::class.java)
     }
 
     @Test
@@ -109,12 +109,14 @@ class PostServiceTest {
     }
 
     @Test
-    fun `when getPost with non-existent postId then returns NotFound`() {
+    fun `when getPost with non-existent postId then returns Failure with PostNotFoundException`() {
         val nonExistentPostId = UUID.randomUUID()
 
         val result = postService.getPost(nonExistentPostId, null)
 
-        assertThat(result).isInstanceOf(PostRetrievalResult.NotFound::class.java)
+        assertThat(result).isInstanceOf(PostRetrievalResult.Failure::class.java)
+        val failure = result as PostRetrievalResult.Failure
+        assertThat(failure.exception).isInstanceOf(PostNotFoundException::class.java)
     }
 
     @Test
@@ -134,7 +136,7 @@ class PostServiceTest {
     }
 
     @Test
-    fun `when getPost with deleted post then returns NotFound`() {
+    fun `when getPost with deleted post then returns Failure with PostNotFoundException`() {
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
         val content = "Test post content"
@@ -143,7 +145,9 @@ class PostServiceTest {
 
         val result = postService.getPost(createResult.postId, null)
 
-        assertThat(result).isInstanceOf(PostRetrievalResult.NotFound::class.java)
+        assertThat(result).isInstanceOf(PostRetrievalResult.Failure::class.java)
+        val failure = result as PostRetrievalResult.Failure
+        assertThat(failure.exception).isInstanceOf(PostNotFoundException::class.java)
     }
 
     @Test
@@ -164,18 +168,20 @@ class PostServiceTest {
     }
 
     @Test
-    fun `when deletePost with non-existent postId then returns NotFound`() {
+    fun `when deletePost with non-existent postId then returns Failure with PostNotFoundException`() {
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
         val nonExistentPostId = UUID.randomUUID()
 
         val result = postService.deletePost(nonExistentPostId, userId)
 
-        assertThat(result).isInstanceOf(PostDeletionResult.NotFound::class.java)
+        assertThat(result).isInstanceOf(PostDeletionResult.Failure::class.java)
+        val failure = result as PostDeletionResult.Failure
+        assertThat(failure.exception).isInstanceOf(PostNotFoundException::class.java)
     }
 
     @Test
-    fun `when deletePost with different user then returns Forbidden`() {
+    fun `when deletePost with different user then returns Failure with PostDeletionForbiddenException`() {
         val authorId = UUID.randomUUID()
         val otherId = UUID.randomUUID()
         userRepository.save(User(authorId, Instant.now()))
@@ -185,13 +191,30 @@ class PostServiceTest {
 
         val result = postService.deletePost(createResult.postId, otherId)
 
-        assertThat(result).isInstanceOf(PostDeletionResult.Forbidden::class.java)
+        assertThat(result).isInstanceOf(PostDeletionResult.Failure::class.java)
+        val failure = result as PostDeletionResult.Failure
+        assertThat(failure.exception).isInstanceOf(PostDeletionForbiddenException::class.java)
         val events = postEventRepository.findByPostIdOrderByOccurredAtAsc(createResult.postId)
         assertThat(events).hasSize(1)
     }
 
     @Test
-    fun `when deletePost with already deleted post then returns NotFound`() {
+    fun `when deletePost with non-existent user then returns Failure with PostUserNotFoundException`() {
+        val authorId = UUID.randomUUID()
+        userRepository.save(User(authorId, Instant.now()))
+        val content = "Test post content"
+        val createResult = postService.createPost(authorId, content) as PostCreationResult.Success
+        val nonExistentUserId = UUID.randomUUID()
+
+        val result = postService.deletePost(createResult.postId, nonExistentUserId)
+
+        assertThat(result).isInstanceOf(PostDeletionResult.Failure::class.java)
+        val failure = result as PostDeletionResult.Failure
+        assertThat(failure.exception).isInstanceOf(PostUserNotFoundException::class.java)
+    }
+
+    @Test
+    fun `when deletePost with already deleted post then returns Failure with PostNotFoundException`() {
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
         val content = "Test post content"
@@ -200,7 +223,9 @@ class PostServiceTest {
 
         val result = postService.deletePost(createResult.postId, userId)
 
-        assertThat(result).isInstanceOf(PostDeletionResult.NotFound::class.java)
+        assertThat(result).isInstanceOf(PostDeletionResult.Failure::class.java)
+        val failure = result as PostDeletionResult.Failure
+        assertThat(failure.exception).isInstanceOf(PostNotFoundException::class.java)
     }
 
     @Test

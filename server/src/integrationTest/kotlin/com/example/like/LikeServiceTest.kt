@@ -51,13 +51,31 @@ class LikeServiceTest {
     }
 
     @Test
-    fun `likePost with non-existent post returns PostNotFound`() {
+    fun `likePost with non-existent post returns Failure with LikePostNotFoundException`() {
         val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
         val nonExistentPostId = UUID.randomUUID()
 
         val result = likeService.likePost(nonExistentPostId, userId)
 
-        assertThat(result).isInstanceOf(LikeResult.PostNotFound::class.java)
+        assertThat(result).isInstanceOf(LikeResult.Failure::class.java)
+        val failure = result as LikeResult.Failure
+        assertThat(failure.exception).isInstanceOf(LikePostNotFoundException::class.java)
+    }
+
+    @Test
+    fun `likePost with non-existent user returns Failure with LikeUserNotFoundException`() {
+        val authorId = UUID.randomUUID()
+        userRepository.save(User(authorId, Instant.now()))
+        val postResult = postService.createPost(authorId, "Test post") as PostCreationResult.Success
+        val postId = postResult.postId
+        val nonExistentUserId = UUID.randomUUID()
+
+        val result = likeService.likePost(postId, nonExistentUserId)
+
+        assertThat(result).isInstanceOf(LikeResult.Failure::class.java)
+        val failure = result as LikeResult.Failure
+        assertThat(failure.exception).isInstanceOf(LikeUserNotFoundException::class.java)
     }
 
     @Test
@@ -78,12 +96,30 @@ class LikeServiceTest {
     }
 
     @Test
-    fun `unlikePost with non-existent post returns PostNotFound`() {
+    fun `unlikePost with non-existent post returns Failure with LikePostNotFoundException`() {
         val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
         val nonExistentPostId = UUID.randomUUID()
 
         val result = likeService.unlikePost(nonExistentPostId, userId)
 
-        assertThat(result).isInstanceOf(UnlikeResult.PostNotFound::class.java)
+        assertThat(result).isInstanceOf(UnlikeResult.Failure::class.java)
+        val failure = result as UnlikeResult.Failure
+        assertThat(failure.exception).isInstanceOf(LikePostNotFoundException::class.java)
+    }
+
+    @Test
+    fun `unlikePost with non-existent user returns Failure with LikeUserNotFoundException`() {
+        val authorId = UUID.randomUUID()
+        userRepository.save(User(authorId, Instant.now()))
+        val postResult = postService.createPost(authorId, "Test post") as PostCreationResult.Success
+        val postId = postResult.postId
+        val nonExistentUserId = UUID.randomUUID()
+
+        val result = likeService.unlikePost(postId, nonExistentUserId)
+
+        assertThat(result).isInstanceOf(UnlikeResult.Failure::class.java)
+        val failure = result as UnlikeResult.Failure
+        assertThat(failure.exception).isInstanceOf(LikeUserNotFoundException::class.java)
     }
 }

@@ -33,10 +33,7 @@ class LikeController(
                     )
                 ResponseEntity.status(HttpStatus.CREATED).body(response)
             }
-            is LikeResult.PostNotFound -> {
-                throw LikePostNotFoundException("Post not found")
-            }
-            is LikeResult.DataAccessFailure -> {
+            is LikeResult.Failure -> {
                 throw result.exception
             }
         }
@@ -49,13 +46,16 @@ class LikeController(
             is UnlikeResult.Success -> {
                 ResponseEntity.noContent().build()
             }
-            is UnlikeResult.PostNotFound -> {
-                throw LikePostNotFoundException("Post not found")
-            }
-            is UnlikeResult.DataAccessFailure -> {
+            is UnlikeResult.Failure -> {
                 throw result.exception
             }
         }
+
+    @ExceptionHandler(LikeUserNotFoundException::class)
+    fun handleLikeUserNotFoundException(e: LikeUserNotFoundException): ResponseEntity<Map<String, String>> {
+        logger.info("User not found: {}", e.message)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(mapOf("error" to (e.message ?: "")))
+    }
 
     @ExceptionHandler(LikePostNotFoundException::class)
     fun handleLikePostNotFoundException(e: LikePostNotFoundException): ResponseEntity<Map<String, String>> {

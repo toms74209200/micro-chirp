@@ -1,5 +1,6 @@
 package com.example.repost
 
+import com.example.auth.UserRepository
 import com.example.post.PostEventRepository
 import com.example.post.aggregatePostEvents
 import io.opentelemetry.instrumentation.annotations.WithSpan
@@ -16,9 +17,7 @@ sealed interface RepostResult {
         val repostedAt: Instant,
     ) : RepostResult
 
-    data object PostNotFound : RepostResult
-
-    data class DataAccessFailure(
+    data class Failure(
         val exception: Exception,
     ) : RepostResult
 }
@@ -26,9 +25,7 @@ sealed interface RepostResult {
 sealed interface UnrepostResult {
     data object Success : UnrepostResult
 
-    data object PostNotFound : UnrepostResult
-
-    data class DataAccessFailure(
+    data class Failure(
         val exception: Exception,
     ) : UnrepostResult
 }
@@ -37,10 +34,15 @@ class RepostPostNotFoundException(
     message: String,
 ) : Exception(message)
 
+class RepostUserNotFoundException(
+    message: String,
+) : Exception(message)
+
 @Service
 class RepostService(
     private val repostEventRepository: RepostEventRepository,
     private val postEventRepository: PostEventRepository,
+    private val userRepository: UserRepository,
     private val objectMapper: ObjectMapper,
 ) {
     @WithSpan
@@ -48,16 +50,20 @@ class RepostService(
         postId: UUID,
         userId: UUID,
     ): RepostResult {
+        if (!userRepository.existsById(userId)) {
+            return RepostResult.Failure(RepostUserNotFoundException("User not found"))
+        }
+
         val postEvents =
             try {
                 postEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
             } catch (e: DataAccessException) {
-                return RepostResult.DataAccessFailure(e)
+                return RepostResult.Failure(e)
             }
 
         val aggregatedPost =
             aggregatePostEvents(postEvents, objectMapper)
-                ?: return RepostResult.PostNotFound
+                ?: return RepostResult.Failure(RepostPostNotFoundException("Post not found"))
 
         val occurredAt = Instant.now()
 
@@ -78,7 +84,7 @@ class RepostService(
                 repostedAt = occurredAt,
             )
         } catch (e: DataAccessException) {
-            RepostResult.DataAccessFailure(e)
+            RepostResult.Failure(e)
         }
     }
 
@@ -87,21 +93,25 @@ class RepostService(
         postId: UUID,
         userId: UUID,
     ): UnrepostResult {
+        if (!userRepository.existsById(userId)) {
+            return UnrepostResult.Failure(RepostUserNotFoundException("User not found"))
+        }
+
         val postEvents =
             try {
                 postEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
             } catch (e: DataAccessException) {
-                return UnrepostResult.DataAccessFailure(e)
+                return UnrepostResult.Failure(e)
             }
 
         aggregatePostEvents(postEvents, objectMapper)
-            ?: return UnrepostResult.PostNotFound
+            ?: return UnrepostResult.Failure(RepostPostNotFoundException("Post not found"))
 
         val repostEvents =
             try {
                 repostEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
             } catch (e: DataAccessException) {
-                return UnrepostResult.DataAccessFailure(e)
+                return UnrepostResult.Failure(e)
             }
 
         val userRepostStatus = UserRepostStatus.fromEvents(repostEvents, userId)
@@ -123,7 +133,7 @@ class RepostService(
             repostEventRepository.save(unrepostEvent)
             UnrepostResult.Success
         } catch (e: DataAccessException) {
-            UnrepostResult.DataAccessFailure(e)
+            UnrepostResult.Failure(e)
         }
     }
 }

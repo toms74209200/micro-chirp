@@ -15,11 +15,7 @@ sealed interface PostCreationResult {
         val createdAt: Instant,
     ) : PostCreationResult
 
-    data class ValidationFailure(
-        val errorMessage: String,
-    ) : PostCreationResult
-
-    data class DataAccessFailure(
+    data class Failure(
         val exception: Exception,
     ) : PostCreationResult
 }
@@ -38,9 +34,7 @@ sealed interface PostRetrievalResult {
         val isRepostedByCurrentUser: Boolean?,
     ) : PostRetrievalResult
 
-    data object NotFound : PostRetrievalResult
-
-    data class DataAccessFailure(
+    data class Failure(
         val exception: Exception,
     ) : PostRetrievalResult
 }
@@ -48,16 +42,24 @@ sealed interface PostRetrievalResult {
 sealed interface PostDeletionResult {
     data object Success : PostDeletionResult
 
-    data object NotFound : PostDeletionResult
-
-    data object Forbidden : PostDeletionResult
-
-    data class DataAccessFailure(
+    data class Failure(
         val exception: Exception,
     ) : PostDeletionResult
 }
 
-class ValidationException(
+class PostValidationException(
+    message: String,
+) : Exception(message)
+
+class PostNotFoundException(
+    message: String,
+) : Exception(message)
+
+class PostUserNotFoundException(
+    message: String,
+) : Exception(message)
+
+class PostDeletionForbiddenException(
     message: String,
 ) : Exception(message)
 
@@ -75,10 +77,10 @@ class PostService(
     ): PostCreationResult {
         val validatedContent =
             parsePostContent(rawContent)
-                ?: return PostCreationResult.ValidationFailure("Content is invalid")
+                ?: return PostCreationResult.Failure(PostValidationException("Content is invalid"))
 
         if (!userRepository.existsById(userId)) {
-            return PostCreationResult.ValidationFailure("User not found")
+            return PostCreationResult.Failure(PostUserNotFoundException("User not found"))
         }
 
         val postId = UUID.randomUUID()
@@ -110,7 +112,7 @@ class PostService(
                 createdAt = occurredAt,
             )
         } catch (e: DataAccessException) {
-            PostCreationResult.DataAccessFailure(e)
+            PostCreationResult.Failure(e)
         }
     }
 
@@ -123,18 +125,18 @@ class PostService(
             try {
                 postEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
             } catch (e: DataAccessException) {
-                return PostRetrievalResult.DataAccessFailure(e)
+                return PostRetrievalResult.Failure(e)
             }
 
         val aggregatedPost =
             aggregatePostEvents(events, objectMapper)
-                ?: return PostRetrievalResult.NotFound
+                ?: return PostRetrievalResult.Failure(PostNotFoundException("Post not found"))
 
         val likeEvents =
             try {
                 likeEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
             } catch (e: DataAccessException) {
-                return PostRetrievalResult.DataAccessFailure(e)
+                return PostRetrievalResult.Failure(e)
             }
 
         val aggregatedLikes = com.example.like.aggregateLikeEvents(likeEvents)
@@ -160,19 +162,23 @@ class PostService(
         postId: UUID,
         userId: UUID,
     ): PostDeletionResult {
+        if (!userRepository.existsById(userId)) {
+            return PostDeletionResult.Failure(PostUserNotFoundException("User not found"))
+        }
+
         val events =
             try {
                 postEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
             } catch (e: DataAccessException) {
-                return PostDeletionResult.DataAccessFailure(e)
+                return PostDeletionResult.Failure(e)
             }
 
         val aggregatedPost =
             aggregatePostEvents(events, objectMapper)
-                ?: return PostDeletionResult.NotFound
+                ?: return PostDeletionResult.Failure(PostNotFoundException("Post not found"))
 
         if (aggregatedPost.userId != userId) {
-            return PostDeletionResult.Forbidden
+            return PostDeletionResult.Failure(PostDeletionForbiddenException("User is not the post author"))
         }
 
         return try {
@@ -187,7 +193,7 @@ class PostService(
             )
             PostDeletionResult.Success
         } catch (e: DataAccessException) {
-            PostDeletionResult.DataAccessFailure(e)
+            PostDeletionResult.Failure(e)
         }
     }
 }

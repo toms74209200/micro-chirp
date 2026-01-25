@@ -51,13 +51,31 @@ class RepostServiceTest {
     }
 
     @Test
-    fun `repostPost with non-existent post returns PostNotFound`() {
+    fun `repostPost with non-existent post returns Failure with RepostPostNotFoundException`() {
         val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
         val nonExistentPostId = UUID.randomUUID()
 
         val result = repostService.repostPost(nonExistentPostId, userId)
 
-        assertThat(result).isInstanceOf(RepostResult.PostNotFound::class.java)
+        assertThat(result).isInstanceOf(RepostResult.Failure::class.java)
+        val failure = result as RepostResult.Failure
+        assertThat(failure.exception).isInstanceOf(RepostPostNotFoundException::class.java)
+    }
+
+    @Test
+    fun `repostPost with non-existent user returns Failure with RepostUserNotFoundException`() {
+        val authorId = UUID.randomUUID()
+        userRepository.save(User(authorId, Instant.now()))
+        val postResult = postService.createPost(authorId, "Test post") as PostCreationResult.Success
+        val postId = postResult.postId
+        val nonExistentUserId = UUID.randomUUID()
+
+        val result = repostService.repostPost(postId, nonExistentUserId)
+
+        assertThat(result).isInstanceOf(RepostResult.Failure::class.java)
+        val failure = result as RepostResult.Failure
+        assertThat(failure.exception).isInstanceOf(RepostUserNotFoundException::class.java)
     }
 
     @Test
@@ -78,12 +96,30 @@ class RepostServiceTest {
     }
 
     @Test
-    fun `unrepostPost with non-existent post returns PostNotFound`() {
+    fun `unrepostPost with non-existent post returns Failure with RepostPostNotFoundException`() {
         val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
         val nonExistentPostId = UUID.randomUUID()
 
         val result = repostService.unrepostPost(nonExistentPostId, userId)
 
-        assertThat(result).isInstanceOf(UnrepostResult.PostNotFound::class.java)
+        assertThat(result).isInstanceOf(UnrepostResult.Failure::class.java)
+        val failure = result as UnrepostResult.Failure
+        assertThat(failure.exception).isInstanceOf(RepostPostNotFoundException::class.java)
+    }
+
+    @Test
+    fun `unrepostPost with non-existent user returns Failure with RepostUserNotFoundException`() {
+        val authorId = UUID.randomUUID()
+        userRepository.save(User(authorId, Instant.now()))
+        val postResult = postService.createPost(authorId, "Test post") as PostCreationResult.Success
+        val postId = postResult.postId
+        val nonExistentUserId = UUID.randomUUID()
+
+        val result = repostService.unrepostPost(postId, nonExistentUserId)
+
+        assertThat(result).isInstanceOf(UnrepostResult.Failure::class.java)
+        val failure = result as UnrepostResult.Failure
+        assertThat(failure.exception).isInstanceOf(RepostUserNotFoundException::class.java)
     }
 }
