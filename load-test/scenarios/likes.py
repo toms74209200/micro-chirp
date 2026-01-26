@@ -1,8 +1,8 @@
 import os
-from uuid import UUID
-from locust import HttpUser, task, between, events
 
-from lib.utils import random_string, long_tail_choice
+from locust import HttpUser, between, events, task
+
+from lib.utils import long_tail_choice, random_string
 from openapi_gen.micro_chirp_api_client.api.auth import post_auth_login
 from openapi_gen.micro_chirp_api_client.api.likes import post_likes
 from openapi_gen.micro_chirp_api_client.api.posts import post_posts

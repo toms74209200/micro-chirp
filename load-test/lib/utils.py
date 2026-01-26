@@ -1,6 +1,6 @@
 import random
 import string
-from typing import TypeVar, Sequence
+from typing import Sequence, TypeVar
 
 T = TypeVar("T")
 
