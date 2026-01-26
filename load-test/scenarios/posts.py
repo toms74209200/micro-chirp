@@ -1,4 +1,4 @@
-from locust import HttpUser, task, between
+from locust import HttpUser, between, task
 
 from lib.utils import random_string
 from openapi_gen.micro_chirp_api_client.api.auth import post_auth_login
