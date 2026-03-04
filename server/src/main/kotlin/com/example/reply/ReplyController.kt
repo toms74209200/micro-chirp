@@ -46,13 +46,6 @@ class ReplyController(
             }
         }
 
-    override fun getReplies(
-        postId: UUID,
-        limit: Int,
-        offset: Int,
-        userId: UUID?,
-    ): ResponseEntity<GetReplies200Response> = TODO("getReplies is not yet implemented")
-
     @ExceptionHandler(ReplyPostNotFoundException::class)
     fun handleReplyPostNotFoundException(e: ReplyPostNotFoundException): ResponseEntity<Map<String, String>> {
         logger.info("Post not found: {}", e.message)

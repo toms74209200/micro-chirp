@@ -9,4 +9,6 @@ interface PostEventRepository : JpaRepository<PostEvent, UUID> {
     fun findByPostIdOrderByOccurredAtAsc(postId: UUID): List<PostEvent>
 
     fun findByReplyToPostIdOrderByOccurredAtAsc(replyToPostId: UUID): List<PostEvent>
+
+    fun findByPostIdInOrderByOccurredAtAsc(postIds: Collection<UUID>): List<PostEvent>
 }
