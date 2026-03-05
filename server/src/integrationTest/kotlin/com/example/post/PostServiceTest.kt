@@ -255,50 +255,8 @@ class PostServiceTest {
     }
 
     @Test
-    fun `when getPosts with replyToPostId then returns Success with replies`() {
-        val userId = UUID.randomUUID()
-        userRepository.save(User(userId, Instant.now()))
-        val parentPost = postService.createPost(userId, "Parent post") as PostCreationResult.Success
-        val replyPostId1 = UUID.randomUUID()
-        val replyPostId2 = UUID.randomUUID()
-        postEventRepository.save(
-            PostEvent(
-                eventId = UUID.randomUUID(),
-                postId = replyPostId1,
-                replyToPostId = parentPost.postId,
-                eventType = PostEventType.POST_CREATED.value,
-                eventData = """{"userId":"$userId","content":"Reply A"}""",
-                occurredAt = Instant.now(),
-            ),
-        )
-        postEventRepository.save(
-            PostEvent(
-                eventId = UUID.randomUUID(),
-                postId = replyPostId2,
-                replyToPostId = parentPost.postId,
-                eventType = PostEventType.POST_CREATED.value,
-                eventData = """{"userId":"$userId","content":"Reply B"}""",
-                occurredAt = Instant.now(),
-            ),
-        )
-
-        val result = postService.getPosts(null, parentPost.postId, null, 20, 0)
-
-        assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
-        val success = result as PostsRetrievalResult.Success
-        assertThat(success.total).isEqualTo(2)
-        assertThat(success.posts).hasSize(2)
-        assertThat(success.posts.map { it.postId }).containsExactlyInAnyOrder(replyPostId1, replyPostId2)
-        assertThat(success.posts).allMatch { it.replyToPostId == parentPost.postId }
-    }
-
-    @Test
-    fun `when getPosts with replyToPostId and no replies then returns empty Success`() {
-        val userId = UUID.randomUUID()
-        userRepository.save(User(userId, Instant.now()))
-        val parentPost = postService.createPost(userId, "Parent post") as PostCreationResult.Success
-
-        val result = postService.getPosts(null, parentPost.postId, null, 20, 0)
+    fun `when getPosts with null ids then returns empty Success`() {
+        val result = postService.getPosts(null, null, 20, 0)
 
         assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
         val success = result as PostsRetrievalResult.Success
@@ -307,32 +265,8 @@ class PostServiceTest {
     }
 
     @Test
-    fun `when getPosts with replyToPostId and deleted reply then excludes deleted reply`() {
-        val userId = UUID.randomUUID()
-        userRepository.save(User(userId, Instant.now()))
-        val parentPost = postService.createPost(userId, "Parent post") as PostCreationResult.Success
-        val replyPostId = UUID.randomUUID()
-        postEventRepository.save(
-            PostEvent(
-                eventId = UUID.randomUUID(),
-                postId = replyPostId,
-                replyToPostId = parentPost.postId,
-                eventType = PostEventType.POST_CREATED.value,
-                eventData = """{"userId":"$userId","content":"Reply to delete"}""",
-                occurredAt = Instant.now(),
-            ),
-        )
-        postEventRepository.save(
-            PostEvent(
-                eventId = UUID.randomUUID(),
-                postId = replyPostId,
-                eventType = PostEventType.POST_DELETED.value,
-                eventData = """{"userId":"$userId"}""",
-                occurredAt = Instant.now(),
-            ),
-        )
-
-        val result = postService.getPosts(null, parentPost.postId, null, 20, 0)
+    fun `when getPosts with empty ids then returns empty Success`() {
+        val result = postService.getPosts(emptyList(), null, 20, 0)
 
         assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
         val success = result as PostsRetrievalResult.Success
@@ -348,7 +282,7 @@ class PostServiceTest {
         val post2 = postService.createPost(userId, "Post 2") as PostCreationResult.Success
         postService.createPost(userId, "Post 3")
 
-        val result = postService.getPosts(listOf(post1.postId, post2.postId), null, null, 20, 0)
+        val result = postService.getPosts(listOf(post1.postId, post2.postId), null, 20, 0)
 
         assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
         val success = result as PostsRetrievalResult.Success
@@ -357,35 +291,30 @@ class PostServiceTest {
     }
 
     @Test
+    fun `when getPosts with duplicate ids then returns deduplicated results`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val post1 = postService.createPost(userId, "Post 1") as PostCreationResult.Success
+
+        val result = postService.getPosts(listOf(post1.postId, post1.postId), null, 20, 0)
+
+        assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
+        val success = result as PostsRetrievalResult.Success
+        assertThat(success.total).isEqualTo(1)
+        assertThat(success.posts).hasSize(1)
+    }
+
+    @Test
     fun `when getPosts with limit and offset then returns paginated results`() {
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
-        val parentPostId = UUID.randomUUID()
-        postEventRepository.save(
-            PostEvent(
-                eventId = UUID.randomUUID(),
-                postId = parentPostId,
-                eventType = PostEventType.POST_CREATED.value,
-                eventData = """{"userId":"$userId","content":"Parent"}""",
-                occurredAt = Instant.now(),
-            ),
-        )
-        val replyIds = (1..5).map { i ->
-            val id = UUID.randomUUID()
-            postEventRepository.save(
-                PostEvent(
-                    eventId = UUID.randomUUID(),
-                    postId = id,
-                    replyToPostId = parentPostId,
-                    eventType = PostEventType.POST_CREATED.value,
-                    eventData = """{"userId":"$userId","content":"Reply $i"}""",
-                    occurredAt = Instant.now(),
-                ),
-            )
-            id
-        }
+        val posts =
+            (1..5).map { i ->
+                postService.createPost(userId, "Post $i") as PostCreationResult.Success
+            }
+        val allIds = posts.map { it.postId }
 
-        val result = postService.getPosts(null, parentPostId, null, 2, 1)
+        val result = postService.getPosts(allIds, null, 2, 1)
 
         assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
         val success = result as PostsRetrievalResult.Success
@@ -399,38 +328,18 @@ class PostServiceTest {
     fun `when getPosts with currentUserId then returns isLikedByCurrentUser`() {
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
-        val replyPostId = UUID.randomUUID()
-        val parentPostId = UUID.randomUUID()
-        postEventRepository.save(
-            PostEvent(
-                eventId = UUID.randomUUID(),
-                postId = parentPostId,
-                eventType = PostEventType.POST_CREATED.value,
-                eventData = """{"userId":"$userId","content":"Parent"}""",
-                occurredAt = Instant.now(),
-            ),
-        )
-        postEventRepository.save(
-            PostEvent(
-                eventId = UUID.randomUUID(),
-                postId = replyPostId,
-                replyToPostId = parentPostId,
-                eventType = PostEventType.POST_CREATED.value,
-                eventData = """{"userId":"$userId","content":"Reply"}""",
-                occurredAt = Instant.now(),
-            ),
-        )
+        val post = postService.createPost(userId, "Post") as PostCreationResult.Success
         likeEventRepository.save(
             LikeEvent(
                 eventId = UUID.randomUUID(),
-                postId = replyPostId,
+                postId = post.postId,
                 userId = userId,
                 eventType = LikeEventType.LIKED.value,
                 occurredAt = Instant.now(),
             ),
         )
 
-        val result = postService.getPosts(null, parentPostId, userId, 20, 0)
+        val result = postService.getPosts(listOf(post.postId), userId, 20, 0)
 
         assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
         val success = result as PostsRetrievalResult.Success

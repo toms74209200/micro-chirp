@@ -187,34 +187,19 @@ class PostService(
     @WithSpan
     fun getPosts(
         ids: List<UUID>?,
-        replyToPostId: UUID?,
         currentUserId: UUID?,
         limit: Int,
         offset: Int,
     ): PostsRetrievalResult {
-        val targetPostIds: List<UUID> =
-            when {
-                replyToPostId != null -> {
-                    try {
-                        postEventRepository
-                            .findByReplyToPostIdOrderByOccurredAtAsc(replyToPostId)
-                            .map { it.postId }
-                            .distinct()
-                    } catch (e: DataAccessException) {
-                        return PostsRetrievalResult.Failure(e)
-                    }
-                }
-                ids != null -> ids
-                else -> emptyList()
-            }
-
-        if (targetPostIds.isEmpty()) {
+        if (ids.isNullOrEmpty()) {
             return PostsRetrievalResult.Success(posts = emptyList(), total = 0, limit = limit, offset = offset)
         }
 
+        val distinctIds = ids.distinct()
+
         val allEvents =
             try {
-                postEventRepository.findByPostIdInOrderByOccurredAtAsc(targetPostIds)
+                postEventRepository.findByPostIdInOrderByOccurredAtAsc(distinctIds)
             } catch (e: DataAccessException) {
                 return PostsRetrievalResult.Failure(e)
             }
@@ -222,7 +207,7 @@ class PostService(
         val eventsByPostId = allEvents.groupBy { it.postId }
 
         val aggregatedPosts =
-            targetPostIds.mapNotNull { postId ->
+            distinctIds.mapNotNull { postId ->
                 val events = eventsByPostId[postId] ?: return@mapNotNull null
                 val parentPostId = events.firstOrNull()?.replyToPostId
                 val aggregated = aggregatePostEvents(events, objectMapper) ?: return@mapNotNull null

@@ -23,15 +23,11 @@ class PostController(
 
     override fun getPosts(
         ids: List<UUID>?,
-        replyToPostId: UUID?,
         userId: UUID?,
         limit: Int,
         offset: Int,
-    ): ResponseEntity<GetPosts200Response> {
-        if (ids == null && replyToPostId == null) {
-            return ResponseEntity.badRequest().build()
-        }
-        return when (val result = postService.getPosts(ids, replyToPostId, userId, limit, offset)) {
+    ): ResponseEntity<GetPosts200Response> =
+        when (val result = postService.getPosts(ids, userId, limit, offset)) {
             is PostsRetrievalResult.Success -> {
                 val posts =
                     result.posts.map { post ->
@@ -60,7 +56,6 @@ class PostController(
             }
             is PostsRetrievalResult.Failure -> throw result.exception
         }
-    }
 
     override fun postPosts(postPostsRequest: PostPostsRequest): ResponseEntity<PostPosts201Response> =
         when (val result = postService.createPost(postPostsRequest.userId, postPostsRequest.content)) {
