@@ -1,6 +1,7 @@
 package com.example.reply
 
 import com.example.api.RepliesApi
+import com.example.model.GetReplies200Response
 import com.example.model.PostReplies201Response
 import com.example.model.PostRepliesRequest
 import org.slf4j.LoggerFactory
@@ -17,6 +18,13 @@ class ReplyController(
     private val replyService: ReplyService,
 ) : RepliesApi {
     private val logger = LoggerFactory.getLogger(ReplyController::class.java)
+
+    override fun getReplies(
+        postId: UUID,
+        limit: Int,
+        offset: Int,
+        userId: UUID?,
+    ): ResponseEntity<GetReplies200Response> = TODO("Not yet implemented")
 
     override fun postReplies(
         postId: UUID,

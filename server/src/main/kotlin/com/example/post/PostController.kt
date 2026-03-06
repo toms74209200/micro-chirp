@@ -22,7 +22,7 @@ class PostController(
     private val logger = LoggerFactory.getLogger(PostController::class.java)
 
     override fun getPosts(
-        ids: List<UUID>?,
+        ids: List<UUID>,
         userId: UUID?,
         limit: Int,
         offset: Int,

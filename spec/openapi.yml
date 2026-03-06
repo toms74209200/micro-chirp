@@ -40,7 +40,7 @@ paths:
       parameters:
         - name: ids
           in: query
-          required: false
+          required: true
           schema:
             type: array
             items:
@@ -1058,6 +1058,7 @@ components:
         replyToPostId:
           type: string
           format: uuid
+          nullable: true
           description: ID of the post this is replying to (null if not a reply)
         userId:
           type: string
@@ -1084,9 +1085,11 @@ components:
           description: Number of views
         isLikedByCurrentUser:
           type: boolean
+          nullable: true
           description: Whether current user has liked this post (null if no userId provided)
         isRepostedByCurrentUser:
           type: boolean
+          nullable: true
           description: Whether current user has reposted this post (null if no userId provided)
       required:
         - postId

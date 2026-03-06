@@ -217,14 +217,18 @@ class PostService(
         val total = aggregatedPosts.size
         val paginated = aggregatedPosts.drop(offset).take(limit)
 
+        val paginatedPostIds = paginated.map { (postId, _, _) -> postId }
+        val allLikeEvents =
+            try {
+                likeEventRepository.findByPostIdInOrderByOccurredAtAsc(paginatedPostIds)
+            } catch (e: DataAccessException) {
+                return PostsRetrievalResult.Failure(e)
+            }
+        val likesByPostId = allLikeEvents.groupBy { it.postId }
+
         val enrichedPosts =
             paginated.map { (postId, parentPostId, aggregated) ->
-                val likeEvents =
-                    try {
-                        likeEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
-                    } catch (e: DataAccessException) {
-                        return PostsRetrievalResult.Failure(e)
-                    }
+                val likeEvents = likesByPostId[postId] ?: emptyList()
                 val aggregatedLikes = com.example.like.aggregateLikeEvents(likeEvents)
                 PostsRetrievalResult.PostItem(
                     postId = postId,

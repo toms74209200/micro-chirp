@@ -7,4 +7,6 @@ import java.util.UUID
 @Repository
 interface LikeEventRepository : JpaRepository<LikeEvent, UUID> {
     fun findByPostIdOrderByOccurredAtAsc(postId: UUID): List<LikeEvent>
+
+    fun findByPostIdInOrderByOccurredAtAsc(postIds: List<UUID>): List<LikeEvent>
 }
