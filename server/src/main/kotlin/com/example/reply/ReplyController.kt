@@ -19,6 +19,13 @@ class ReplyController(
 ) : RepliesApi {
     private val logger = LoggerFactory.getLogger(ReplyController::class.java)
 
+    override fun getReplies(
+        postId: UUID,
+        limit: Int,
+        offset: Int,
+        userId: UUID?,
+    ): ResponseEntity<GetReplies200Response> = TODO("Not yet implemented")
+
     override fun postReplies(
         postId: UUID,
         postRepliesRequest: PostRepliesRequest,
@@ -45,13 +52,6 @@ class ReplyController(
                 throw result.exception
             }
         }
-
-    override fun getReplies(
-        postId: UUID,
-        limit: Int,
-        offset: Int,
-        userId: UUID?,
-    ): ResponseEntity<GetReplies200Response> = TODO("getReplies is not yet implemented")
 
     @ExceptionHandler(ReplyPostNotFoundException::class)
     fun handleReplyPostNotFoundException(e: ReplyPostNotFoundException): ResponseEntity<Map<String, String>> {

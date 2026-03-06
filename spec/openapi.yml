@@ -31,6 +31,75 @@ paths:
                   - userId
 
   /posts:
+    get:
+      tags:
+        - posts
+      operationId: getPosts
+      summary: Get multiple posts
+      description: Retrieve multiple posts by IDs. Returns enriched post data with counts and current user status.
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+          style: form
+          explode: false
+          description: Comma-separated list of post IDs to retrieve
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Current user ID to check like/repost status
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Maximum number of posts to retrieve
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Offset for pagination
+      responses:
+        '200':
+          description: Posts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EnrichedPost'
+                  total:
+                    type: integer
+                    description: Total number of posts matching the query
+                  limit:
+                    type: integer
+                    description: Number of posts requested
+                  offset:
+                    type: integer
+                    description: Offset used for pagination
+                required:
+                  - posts
+                  - total
+                  - limit
+                  - offset
+
     post:
       tags:
         - posts
@@ -697,91 +766,6 @@ paths:
                     description: Error message
 
   /posts/{postId}/replies:
-    post:
-      tags:
-        - replies
-      operationId: postReplies
-      summary: Reply to a post
-      description: Create a reply to an existing post
-      parameters:
-        - name: postId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: ID of the post to reply to
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                userId:
-                  type: string
-                  format: uuid
-                  description: User ID creating the reply
-                content:
-                  type: string
-                  description: Text content of the reply
-              required:
-                - userId
-                - content
-      responses:
-        '201':
-          description: Reply created successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  replyPostId:
-                    type: string
-                    format: uuid
-                    description: ID of the reply post
-                  replyToPostId:
-                    type: string
-                    format: uuid
-                    description: ID of the original post
-                  userId:
-                    type: string
-                    format: uuid
-                    description: User ID of the reply author
-                  content:
-                    type: string
-                    description: Text content of the reply
-                  createdAt:
-                    type: string
-                    format: date-time
-                    description: Reply creation timestamp
-                required:
-                  - replyPostId
-                  - replyToPostId
-                  - userId
-                  - content
-                  - createdAt
-        '400':
-          description: Bad request (e.g., content exceeds character limit)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    description: Error message
-        '404':
-          description: Post not found
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    description: Error message
-
     get:
       tags:
         - replies
@@ -904,6 +888,90 @@ paths:
                   error:
                     type: string
                     description: Error message
+    post:
+      tags:
+        - replies
+      operationId: postReplies
+      summary: Reply to a post
+      description: Create a reply to an existing post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the post to reply to
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: User ID creating the reply
+                content:
+                  type: string
+                  description: Text content of the reply
+              required:
+                - userId
+                - content
+      responses:
+        '201':
+          description: Reply created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  replyPostId:
+                    type: string
+                    format: uuid
+                    description: ID of the reply post
+                  replyToPostId:
+                    type: string
+                    format: uuid
+                    description: ID of the original post
+                  userId:
+                    type: string
+                    format: uuid
+                    description: User ID of the reply author
+                  content:
+                    type: string
+                    description: Text content of the reply
+                  createdAt:
+                    type: string
+                    format: date-time
+                    description: Reply creation timestamp
+                required:
+                  - replyPostId
+                  - replyToPostId
+                  - userId
+                  - content
+                  - createdAt
+        '400':
+          description: Bad request (e.g., content exceeds character limit)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
 
   /posts/{postId}/views:
     post:
@@ -977,3 +1045,58 @@ paths:
                   error:
                     type: string
                     description: Error message
+
+components:
+  schemas:
+    EnrichedPost:
+      type: object
+      properties:
+        postId:
+          type: string
+          format: uuid
+          description: Post ID
+        replyToPostId:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of the post this is replying to (null if not a reply)
+        userId:
+          type: string
+          format: uuid
+          description: User ID of the post author
+        content:
+          type: string
+          description: Text content of the post
+        createdAt:
+          type: string
+          format: date-time
+          description: Post creation timestamp
+        likeCount:
+          type: integer
+          description: Number of likes
+        repostCount:
+          type: integer
+          description: Number of reposts
+        replyCount:
+          type: integer
+          description: Number of replies
+        viewCount:
+          type: integer
+          description: Number of views
+        isLikedByCurrentUser:
+          type: boolean
+          nullable: true
+          description: Whether current user has liked this post (null if no userId provided)
+        isRepostedByCurrentUser:
+          type: boolean
+          nullable: true
+          description: Whether current user has reposted this post (null if no userId provided)
+      required:
+        - postId
+        - userId
+        - content
+        - createdAt
+        - likeCount
+        - repostCount
+        - replyCount
+        - viewCount

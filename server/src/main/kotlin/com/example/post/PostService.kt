@@ -39,6 +39,33 @@ sealed interface PostRetrievalResult {
     ) : PostRetrievalResult
 }
 
+sealed interface PostsRetrievalResult {
+    data class PostItem(
+        val postId: UUID,
+        val replyToPostId: UUID?,
+        val userId: UUID,
+        val content: String,
+        val createdAt: Instant,
+        val likeCount: Int,
+        val repostCount: Int,
+        val replyCount: Int,
+        val viewCount: Int,
+        val isLikedByCurrentUser: Boolean?,
+        val isRepostedByCurrentUser: Boolean?,
+    )
+
+    data class Success(
+        val posts: List<PostItem>,
+        val total: Int,
+        val limit: Int,
+        val offset: Int,
+    ) : PostsRetrievalResult
+
+    data class Failure(
+        val exception: Exception,
+    ) : PostsRetrievalResult
+}
+
 sealed interface PostDeletionResult {
     data object Success : PostDeletionResult
 
@@ -154,6 +181,75 @@ class PostService(
             viewCount = 0,
             isLikedByCurrentUser = isLikedByCurrentUser,
             isRepostedByCurrentUser = currentUserId?.let { false },
+        )
+    }
+
+    @WithSpan
+    fun getPosts(
+        ids: List<UUID>?,
+        currentUserId: UUID?,
+        limit: Int,
+        offset: Int,
+    ): PostsRetrievalResult {
+        if (ids.isNullOrEmpty()) {
+            return PostsRetrievalResult.Success(posts = emptyList(), total = 0, limit = limit, offset = offset)
+        }
+
+        val distinctIds = ids.distinct()
+
+        val allEvents =
+            try {
+                postEventRepository.findByPostIdInOrderByOccurredAtAsc(distinctIds)
+            } catch (e: DataAccessException) {
+                return PostsRetrievalResult.Failure(e)
+            }
+
+        val eventsByPostId = allEvents.groupBy { it.postId }
+
+        val aggregatedPosts =
+            distinctIds.mapNotNull { postId ->
+                val events = eventsByPostId[postId] ?: return@mapNotNull null
+                val parentPostId = events.firstOrNull()?.replyToPostId
+                val aggregated = aggregatePostEvents(events, objectMapper) ?: return@mapNotNull null
+                Triple(postId, parentPostId, aggregated)
+            }
+
+        val total = aggregatedPosts.size
+        val paginated = aggregatedPosts.drop(offset).take(limit)
+
+        val paginatedPostIds = paginated.map { (postId, _, _) -> postId }
+        val allLikeEvents =
+            try {
+                likeEventRepository.findByPostIdInOrderByOccurredAtAsc(paginatedPostIds)
+            } catch (e: DataAccessException) {
+                return PostsRetrievalResult.Failure(e)
+            }
+        val likesByPostId = allLikeEvents.groupBy { it.postId }
+
+        val enrichedPosts =
+            paginated.map { (postId, parentPostId, aggregated) ->
+                val likeEvents = likesByPostId[postId] ?: emptyList()
+                val aggregatedLikes = com.example.like.aggregateLikeEvents(likeEvents)
+                PostsRetrievalResult.PostItem(
+                    postId = postId,
+                    replyToPostId = parentPostId,
+                    userId = aggregated.userId,
+                    content = aggregated.content,
+                    createdAt = aggregated.createdAt,
+                    likeCount = aggregatedLikes.likeCount,
+                    repostCount = 0,
+                    replyCount = 0,
+                    viewCount = 0,
+                    isLikedByCurrentUser = currentUserId?.let { it in aggregatedLikes.likedUserIds },
+                    isRepostedByCurrentUser = currentUserId?.let { false },
+                )
+            }
+
+        return PostsRetrievalResult.Success(
+            posts = enrichedPosts,
+            total = total,
+            limit = limit,
+            offset = offset,
         )
     }
 

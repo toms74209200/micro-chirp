@@ -1,6 +1,8 @@
 package com.example.post
 
 import com.example.api.PostsApi
+import com.example.model.EnrichedPost
+import com.example.model.GetPosts200Response
 import com.example.model.GetPostsById200Response
 import com.example.model.PostPosts201Response
 import com.example.model.PostPostsRequest
@@ -18,6 +20,42 @@ class PostController(
     private val postService: PostService,
 ) : PostsApi {
     private val logger = LoggerFactory.getLogger(PostController::class.java)
+
+    override fun getPosts(
+        ids: List<UUID>,
+        userId: UUID?,
+        limit: Int,
+        offset: Int,
+    ): ResponseEntity<GetPosts200Response> =
+        when (val result = postService.getPosts(ids, userId, limit, offset)) {
+            is PostsRetrievalResult.Success -> {
+                val posts =
+                    result.posts.map { post ->
+                        EnrichedPost(
+                            postId = post.postId,
+                            replyToPostId = post.replyToPostId,
+                            userId = post.userId,
+                            content = post.content,
+                            createdAt = OffsetDateTime.ofInstant(post.createdAt, ZoneOffset.UTC),
+                            likeCount = post.likeCount,
+                            repostCount = post.repostCount,
+                            replyCount = post.replyCount,
+                            viewCount = post.viewCount,
+                            isLikedByCurrentUser = post.isLikedByCurrentUser,
+                            isRepostedByCurrentUser = post.isRepostedByCurrentUser,
+                        )
+                    }
+                ResponseEntity.ok(
+                    GetPosts200Response(
+                        posts = posts,
+                        total = result.total,
+                        limit = result.limit,
+                        offset = result.offset,
+                    ),
+                )
+            }
+            is PostsRetrievalResult.Failure -> throw result.exception
+        }
 
     override fun postPosts(postPostsRequest: PostPostsRequest): ResponseEntity<PostPosts201Response> =
         when (val result = postService.createPost(postPostsRequest.userId, postPostsRequest.content)) {

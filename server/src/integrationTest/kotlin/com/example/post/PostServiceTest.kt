@@ -253,4 +253,98 @@ class PostServiceTest {
         assertThat(success.likeCount).isEqualTo(1)
         assertThat(success.isLikedByCurrentUser).isTrue()
     }
+
+    @Test
+    fun `when getPosts with null ids then returns empty Success`() {
+        val result = postService.getPosts(null, null, 20, 0)
+
+        assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
+        val success = result as PostsRetrievalResult.Success
+        assertThat(success.total).isEqualTo(0)
+        assertThat(success.posts).isEmpty()
+    }
+
+    @Test
+    fun `when getPosts with empty ids then returns empty Success`() {
+        val result = postService.getPosts(emptyList(), null, 20, 0)
+
+        assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
+        val success = result as PostsRetrievalResult.Success
+        assertThat(success.total).isEqualTo(0)
+        assertThat(success.posts).isEmpty()
+    }
+
+    @Test
+    fun `when getPosts with ids then returns Success with specified posts`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val post1 = postService.createPost(userId, "Post 1") as PostCreationResult.Success
+        val post2 = postService.createPost(userId, "Post 2") as PostCreationResult.Success
+        postService.createPost(userId, "Post 3")
+
+        val result = postService.getPosts(listOf(post1.postId, post2.postId), null, 20, 0)
+
+        assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
+        val success = result as PostsRetrievalResult.Success
+        assertThat(success.total).isEqualTo(2)
+        assertThat(success.posts.map { it.postId }).containsExactlyInAnyOrder(post1.postId, post2.postId)
+    }
+
+    @Test
+    fun `when getPosts with duplicate ids then returns deduplicated results`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val post1 = postService.createPost(userId, "Post 1") as PostCreationResult.Success
+
+        val result = postService.getPosts(listOf(post1.postId, post1.postId), null, 20, 0)
+
+        assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
+        val success = result as PostsRetrievalResult.Success
+        assertThat(success.total).isEqualTo(1)
+        assertThat(success.posts).hasSize(1)
+    }
+
+    @Test
+    fun `when getPosts with limit and offset then returns paginated results`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val posts =
+            (1..5).map { i ->
+                postService.createPost(userId, "Post $i") as PostCreationResult.Success
+            }
+        val allIds = posts.map { it.postId }
+
+        val result = postService.getPosts(allIds, null, 2, 1)
+
+        assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
+        val success = result as PostsRetrievalResult.Success
+        assertThat(success.total).isEqualTo(5)
+        assertThat(success.posts).hasSize(2)
+        assertThat(success.limit).isEqualTo(2)
+        assertThat(success.offset).isEqualTo(1)
+    }
+
+    @Test
+    fun `when getPosts with currentUserId then returns isLikedByCurrentUser`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val post = postService.createPost(userId, "Post") as PostCreationResult.Success
+        likeEventRepository.save(
+            LikeEvent(
+                eventId = UUID.randomUUID(),
+                postId = post.postId,
+                userId = userId,
+                eventType = LikeEventType.LIKED.value,
+                occurredAt = Instant.now(),
+            ),
+        )
+
+        val result = postService.getPosts(listOf(post.postId), userId, 20, 0)
+
+        assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
+        val success = result as PostsRetrievalResult.Success
+        assertThat(success.posts).hasSize(1)
+        assertThat(success.posts[0].likeCount).isEqualTo(1)
+        assertThat(success.posts[0].isLikedByCurrentUser).isTrue()
+    }
 }
