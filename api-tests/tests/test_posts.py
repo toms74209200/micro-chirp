@@ -236,3 +236,123 @@ def test_get_post_with_liked_post_returns_like_info():
     data = response.json()
     assert data["likeCount"] == 1
     assert data["isLikedByCurrentUser"] is True
+
+
+def test_get_posts_without_ids_returns_200_with_empty_posts():
+    response = requests.get(f"{BASE_URL}/posts")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["posts"] == []
+    assert data["total"] == 0
+
+
+def test_get_posts_with_empty_ids_returns_200_with_empty_posts():
+    response = requests.get(f"{BASE_URL}/posts", params={"ids": ""})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["posts"] == []
+    assert data["total"] == 0
+
+
+def test_get_posts_with_ids_returns_200():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = auth_response.user_id
+
+    body1 = PostPostsBody(user_id=user_id, content=f"Post A {uuid4().hex[:8]}")
+    body2 = PostPostsBody(user_id=user_id, content=f"Post B {uuid4().hex[:8]}")
+    post1 = post_posts.sync(client=client, body=body1)
+    post2 = post_posts.sync(client=client, body=body2)
+    assert post1 is not None and post2 is not None
+    post_id1 = str(post1.post_id)
+    post_id2 = str(post2.post_id)
+
+    response = requests.get(f"{BASE_URL}/posts", params={"ids": f"{post_id1},{post_id2}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 2
+    assert data["limit"] == 20
+    assert data["offset"] == 0
+    returned_ids = [p["postId"] for p in data["posts"]]
+    assert post_id1 in returned_ids
+    assert post_id2 in returned_ids
+    for post in data["posts"]:
+        assert UUID_PATTERN.match(post["postId"])
+        assert ISO8601_PATTERN.match(post["createdAt"])
+        assert post["likeCount"] == 0
+        assert post["isLikedByCurrentUser"] is None
+
+
+def test_get_posts_with_user_id_returns_like_status():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
+    created = post_posts.sync(client=client, body=body)
+    assert created is not None
+    post_id = str(created.post_id)
+
+    response = requests.get(f"{BASE_URL}/posts", params={"ids": post_id, "userId": user_id})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["posts"]) == 1
+    assert data["posts"][0]["isLikedByCurrentUser"] is False
+    assert data["posts"][0]["isRepostedByCurrentUser"] is False
+
+
+def test_get_posts_with_liked_post_and_user_id_returns_is_liked_true():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
+    created = post_posts.sync(client=client, body=body)
+    assert created is not None
+    post_id = str(created.post_id)
+
+    like_response = requests.post(
+        f"{BASE_URL}/posts/{post_id}/likes",
+        json={"userId": user_id},
+    )
+    assert like_response.status_code == 201
+
+    response = requests.get(
+        f"{BASE_URL}/posts",
+        params={"ids": post_id, "userId": user_id},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["posts"]) == 1
+    assert data["posts"][0]["likeCount"] == 1
+    assert data["posts"][0]["isLikedByCurrentUser"] is True
+
+
+def test_get_posts_with_limit_and_offset_returns_paginated_results():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = auth_response.user_id
+
+    posts = [
+        post_posts.sync(client=client, body=PostPostsBody(user_id=user_id, content=f"Post {i} {uuid4().hex[:8]}"))
+        for i in range(5)
+    ]
+    assert all(p is not None for p in posts)
+    all_ids = ",".join(str(p.post_id) for p in posts)
+
+    response = requests.get(
+        f"{BASE_URL}/posts",
+        params={"ids": all_ids, "limit": 2, "offset": 1},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 5
+    assert len(data["posts"]) == 2
+    assert data["limit"] == 2
+    assert data["offset"] == 1
