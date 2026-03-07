@@ -11,7 +11,6 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestController
-import org.springframework.web.bind.MissingServletRequestParameterException
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -113,14 +112,6 @@ class PostController(
                 throw result.exception
             }
         }
-
-    @ExceptionHandler(MissingServletRequestParameterException::class)
-    fun handleMissingServletRequestParameterException(e: MissingServletRequestParameterException): ResponseEntity<GetPosts200Response> {
-        if (e.parameterName == "ids") {
-            return ResponseEntity.ok(GetPosts200Response(posts = emptyList(), total = 0, limit = 20, offset = 0))
-        }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).build()
-    }
 
     @ExceptionHandler(PostValidationException::class)
     fun handlePostValidationException(e: PostValidationException): ResponseEntity<Map<String, String>> {

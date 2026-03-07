@@ -238,15 +238,6 @@ def test_get_post_with_liked_post_returns_like_info():
     assert data["isLikedByCurrentUser"] is True
 
 
-def test_get_posts_without_ids_returns_200_with_empty_posts():
-    response = requests.get(f"{BASE_URL}/posts")
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["posts"] == []
-    assert data["total"] == 0
-
-
 def test_get_posts_with_empty_ids_returns_200_with_empty_posts():
     response = requests.get(f"{BASE_URL}/posts", params={"ids": ""})
 
