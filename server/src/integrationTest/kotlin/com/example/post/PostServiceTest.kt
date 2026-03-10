@@ -6,6 +6,11 @@ import com.example.auth.UserRepository
 import com.example.like.LikeEvent
 import com.example.like.LikeEventRepository
 import com.example.like.LikeEventType
+import com.example.reply.ReplyCreationResult
+import com.example.reply.ReplyService
+import com.example.repost.RepostEvent
+import com.example.repost.RepostEventRepository
+import com.example.repost.RepostEventType
 import org.apache.commons.lang3.RandomStringUtils
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -29,6 +34,12 @@ class PostServiceTest {
 
     @Autowired
     private lateinit var likeEventRepository: LikeEventRepository
+
+    @Autowired
+    private lateinit var repostEventRepository: RepostEventRepository
+
+    @Autowired
+    private lateinit var replyService: ReplyService
 
     @Test
     fun `when createPost with valid content then returns Success with post details`() {
@@ -346,5 +357,103 @@ class PostServiceTest {
         assertThat(success.posts).hasSize(1)
         assertThat(success.posts[0].likeCount).isEqualTo(1)
         assertThat(success.posts[0].isLikedByCurrentUser).isTrue()
+    }
+
+    @Test
+    fun `when getPost with reposted post by current user then returns repostCount and isRepostedByCurrentUser true`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val createResult = postService.createPost(userId, "Test post") as PostCreationResult.Success
+        val postId = createResult.postId
+        repostEventRepository.save(
+            RepostEvent(
+                eventId = UUID.randomUUID(),
+                postId = postId,
+                userId = userId,
+                eventType = RepostEventType.REPOSTED.value,
+                occurredAt = Instant.now(),
+            ),
+        )
+
+        val result = postService.getPost(postId, userId)
+
+        assertThat(result).isInstanceOf(PostRetrievalResult.Success::class.java)
+        val success = result as PostRetrievalResult.Success
+        assertThat(success.repostCount).isEqualTo(1)
+        assertThat(success.isRepostedByCurrentUser).isTrue()
+    }
+
+    @Test
+    fun `when getPost with active replies then returns correct replyCount`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val createResult = postService.createPost(userId, "Test post") as PostCreationResult.Success
+        val postId = createResult.postId
+        replyService.replyToPost(postId, userId, "Reply 1")
+        replyService.replyToPost(postId, userId, "Reply 2")
+
+        val result = postService.getPost(postId, null)
+
+        assertThat(result).isInstanceOf(PostRetrievalResult.Success::class.java)
+        val success = result as PostRetrievalResult.Success
+        assertThat(success.replyCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `when getPost with deleted reply then excludes deleted reply from replyCount`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val createResult = postService.createPost(userId, "Test post") as PostCreationResult.Success
+        val postId = createResult.postId
+        replyService.replyToPost(postId, userId, "Active reply")
+        val deletedReplyResult = replyService.replyToPost(postId, userId, "To be deleted reply")
+        val deletedReplyPostId = (deletedReplyResult as ReplyCreationResult.Success).replyPostId
+        postService.deletePost(deletedReplyPostId, userId)
+
+        val result = postService.getPost(postId, null)
+
+        assertThat(result).isInstanceOf(PostRetrievalResult.Success::class.java)
+        val success = result as PostRetrievalResult.Success
+        assertThat(success.replyCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `when getPosts with reposted post by current user then returns repostCount and isRepostedByCurrentUser true`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val post = postService.createPost(userId, "Post") as PostCreationResult.Success
+        repostEventRepository.save(
+            RepostEvent(
+                eventId = UUID.randomUUID(),
+                postId = post.postId,
+                userId = userId,
+                eventType = RepostEventType.REPOSTED.value,
+                occurredAt = Instant.now(),
+            ),
+        )
+
+        val result = postService.getPosts(listOf(post.postId), userId, 20, 0)
+
+        assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
+        val success = result as PostsRetrievalResult.Success
+        assertThat(success.posts).hasSize(1)
+        assertThat(success.posts[0].repostCount).isEqualTo(1)
+        assertThat(success.posts[0].isRepostedByCurrentUser).isTrue()
+    }
+
+    @Test
+    fun `when getPosts with active replies then returns correct replyCount`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val post = postService.createPost(userId, "Post") as PostCreationResult.Success
+        replyService.replyToPost(post.postId, userId, "Reply 1")
+        replyService.replyToPost(post.postId, userId, "Reply 2")
+
+        val result = postService.getPosts(listOf(post.postId), null, 20, 0)
+
+        assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
+        val success = result as PostsRetrievalResult.Success
+        assertThat(success.posts).hasSize(1)
+        assertThat(success.posts[0].replyCount).isEqualTo(2)
     }
 }

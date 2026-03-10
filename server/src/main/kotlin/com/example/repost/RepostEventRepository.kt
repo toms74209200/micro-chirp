@@ -7,4 +7,6 @@ import java.util.UUID
 @Repository
 interface RepostEventRepository : JpaRepository<RepostEvent, UUID> {
     fun findByPostIdOrderByOccurredAtAsc(postId: UUID): List<RepostEvent>
+
+    fun findByPostIdInOrderByOccurredAtAsc(postIds: Collection<UUID>): List<RepostEvent>
 }

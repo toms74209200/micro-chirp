@@ -95,6 +95,7 @@ class PostService(
     private val postEventRepository: PostEventRepository,
     private val userRepository: com.example.auth.UserRepository,
     private val likeEventRepository: com.example.like.LikeEventRepository,
+    private val repostEventRepository: com.example.repost.RepostEventRepository,
     private val objectMapper: ObjectMapper,
 ) {
     @WithSpan
@@ -168,7 +169,54 @@ class PostService(
 
         val aggregatedLikes = com.example.like.aggregateLikeEvents(likeEvents)
         val likeCount = aggregatedLikes.likeCount
-        val isLikedByCurrentUser = currentUserId?.let { it in aggregatedLikes.likedUserIds }
+        val isLikedByCurrentUser =
+            currentUserId?.let { uid ->
+                when (
+                    com.example.like.UserLikeStatus
+                        .fromEvents(likeEvents, uid)
+                ) {
+                    com.example.like.UserLikeStatus.Liked -> true
+                    com.example.like.UserLikeStatus.NotLiked -> false
+                }
+            }
+
+        val repostEvents =
+            try {
+                repostEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
+            } catch (e: DataAccessException) {
+                return PostRetrievalResult.Failure(e)
+            }
+        val aggregatedReposts = com.example.repost.aggregateRepostEvents(repostEvents)
+        val isRepostedByCurrentUser =
+            currentUserId?.let { uid ->
+                when (
+                    com.example.repost.UserRepostStatus
+                        .fromEvents(repostEvents, uid)
+                ) {
+                    com.example.repost.UserRepostStatus.Reposted -> true
+                    com.example.repost.UserRepostStatus.NotReposted -> false
+                }
+            }
+
+        val replyCreatedEvents =
+            try {
+                postEventRepository.findByReplyToPostIdOrderByOccurredAtAsc(postId)
+            } catch (e: DataAccessException) {
+                return PostRetrievalResult.Failure(e)
+            }
+        val replyPostIds = replyCreatedEvents.map { it.postId }.distinct()
+        val replyCount =
+            if (replyPostIds.isEmpty()) {
+                0
+            } else {
+                val allReplyEvents =
+                    try {
+                        postEventRepository.findByPostIdInOrderByOccurredAtAsc(replyPostIds)
+                    } catch (e: DataAccessException) {
+                        return PostRetrievalResult.Failure(e)
+                    }
+                countActiveReplies(allReplyEvents.groupBy { it.postId }, objectMapper)
+            }
 
         return PostRetrievalResult.Success(
             postId = postId,
@@ -176,11 +224,11 @@ class PostService(
             content = aggregatedPost.content,
             createdAt = aggregatedPost.createdAt,
             likeCount = likeCount,
-            repostCount = 0,
-            replyCount = 0,
+            repostCount = aggregatedReposts.repostCount,
+            replyCount = replyCount,
             viewCount = 0,
             isLikedByCurrentUser = isLikedByCurrentUser,
-            isRepostedByCurrentUser = currentUserId?.let { false },
+            isRepostedByCurrentUser = isRepostedByCurrentUser,
         )
     }
 
@@ -226,10 +274,42 @@ class PostService(
             }
         val likesByPostId = allLikeEvents.groupBy { it.postId }
 
+        val allRepostEvents =
+            try {
+                repostEventRepository.findByPostIdInOrderByOccurredAtAsc(paginatedPostIds)
+            } catch (e: DataAccessException) {
+                return PostsRetrievalResult.Failure(e)
+            }
+        val repostsByPostId = allRepostEvents.groupBy { it.postId }
+
+        val replyCreatedEvents =
+            try {
+                postEventRepository.findByReplyToPostIdInOrderByOccurredAtAsc(paginatedPostIds)
+            } catch (e: DataAccessException) {
+                return PostsRetrievalResult.Failure(e)
+            }
+        val replyPostIdsByParent = replyCreatedEvents.groupBy({ it.replyToPostId!! }, { it.postId })
+        val allReplyPostIds = replyCreatedEvents.map { it.postId }.distinct()
+        val allReplyEventsByPostId =
+            if (allReplyPostIds.isEmpty()) {
+                emptyMap()
+            } else {
+                try {
+                    postEventRepository.findByPostIdInOrderByOccurredAtAsc(allReplyPostIds).groupBy { it.postId }
+                } catch (e: DataAccessException) {
+                    return PostsRetrievalResult.Failure(e)
+                }
+            }
+
         val enrichedPosts =
             paginated.map { (postId, parentPostId, aggregated) ->
                 val likeEvents = likesByPostId[postId] ?: emptyList()
                 val aggregatedLikes = com.example.like.aggregateLikeEvents(likeEvents)
+                val repostEvents = repostsByPostId[postId] ?: emptyList()
+                val aggregatedReposts = com.example.repost.aggregateRepostEvents(repostEvents)
+                val replyPostIds = replyPostIdsByParent[postId] ?: emptyList()
+                val replyEventsByPostId = replyPostIds.associateWith { allReplyEventsByPostId[it] ?: emptyList() }
+                val replyCount = countActiveReplies(replyEventsByPostId, objectMapper)
                 PostsRetrievalResult.PostItem(
                     postId = postId,
                     replyToPostId = parentPostId,
@@ -237,11 +317,29 @@ class PostService(
                     content = aggregated.content,
                     createdAt = aggregated.createdAt,
                     likeCount = aggregatedLikes.likeCount,
-                    repostCount = 0,
-                    replyCount = 0,
+                    repostCount = aggregatedReposts.repostCount,
+                    replyCount = replyCount,
                     viewCount = 0,
-                    isLikedByCurrentUser = currentUserId?.let { it in aggregatedLikes.likedUserIds },
-                    isRepostedByCurrentUser = currentUserId?.let { false },
+                    isLikedByCurrentUser =
+                        currentUserId?.let { uid ->
+                            when (
+                                com.example.like.UserLikeStatus
+                                    .fromEvents(likeEvents, uid)
+                            ) {
+                                com.example.like.UserLikeStatus.Liked -> true
+                                com.example.like.UserLikeStatus.NotLiked -> false
+                            }
+                        },
+                    isRepostedByCurrentUser =
+                        currentUserId?.let { uid ->
+                            when (
+                                com.example.repost.UserRepostStatus
+                                    .fromEvents(repostEvents, uid)
+                            ) {
+                                com.example.repost.UserRepostStatus.Reposted -> true
+                                com.example.repost.UserRepostStatus.NotReposted -> false
+                            }
+                        },
                 )
             }
 
