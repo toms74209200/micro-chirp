@@ -22,6 +22,11 @@ data class AggregatedPost(
     val createdAt: Instant,
 )
 
+fun countActiveReplies(
+    replyEventsByPostId: Map<UUID, List<PostEvent>>,
+    objectMapper: ObjectMapper,
+): Int = replyEventsByPostId.count { (_, events) -> aggregatePostEvents(events, objectMapper) != null }
+
 fun aggregatePostEvents(
     events: List<PostEvent>,
     objectMapper: ObjectMapper,
