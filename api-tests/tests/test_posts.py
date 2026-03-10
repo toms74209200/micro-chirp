@@ -267,14 +267,16 @@ def test_get_posts_with_ids_returns_200():
     assert data["total"] == 2
     assert data["limit"] == 20
     assert data["offset"] == 0
-    returned_ids = [p["postId"] for p in data["posts"]]
-    assert post_id1 in returned_ids
-    assert post_id2 in returned_ids
-    for post in data["posts"]:
-        assert UUID_PATTERN.match(post["postId"])
-        assert ISO8601_PATTERN.match(post["createdAt"])
-        assert post["likeCount"] == 0
-        assert post["isLikedByCurrentUser"] is None
+    assert data["posts"][0]["postId"] in (post_id1, post_id2)
+    assert data["posts"][1]["postId"] in (post_id1, post_id2)
+    assert UUID_PATTERN.match(data["posts"][0]["postId"])
+    assert ISO8601_PATTERN.match(data["posts"][0]["createdAt"])
+    assert data["posts"][0]["likeCount"] == 0
+    assert data["posts"][0]["isLikedByCurrentUser"] is None
+    assert UUID_PATTERN.match(data["posts"][1]["postId"])
+    assert ISO8601_PATTERN.match(data["posts"][1]["createdAt"])
+    assert data["posts"][1]["likeCount"] == 0
+    assert data["posts"][1]["isLikedByCurrentUser"] is None
 
 
 def test_get_posts_with_user_id_returns_like_status():
@@ -324,17 +326,152 @@ def test_get_posts_with_liked_post_and_user_id_returns_is_liked_true():
     assert data["posts"][0]["isLikedByCurrentUser"] is True
 
 
+def test_get_posts_by_id_with_reposted_post_returns_repost_info():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    repost_response = requests.post(
+        f"{BASE_URL}/posts/{post_id}/reposts",
+        json={"userId": user_id},
+    )
+    assert repost_response.status_code == 201
+
+    response = requests.get(f"{BASE_URL}/posts/{post_id}", params={"userId": user_id})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["repostCount"] == 1
+    assert data["isRepostedByCurrentUser"] is True
+
+
+def test_get_posts_by_id_with_replies_returns_reply_count():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    requests.post(
+        f"{BASE_URL}/posts/{post_id}/replies",
+        json={"userId": user_id, "content": f"Reply {uuid4().hex[:8]}"},
+    )
+    requests.post(
+        f"{BASE_URL}/posts/{post_id}/replies",
+        json={"userId": user_id, "content": f"Reply {uuid4().hex[:8]}"},
+    )
+
+    response = requests.get(f"{BASE_URL}/posts/{post_id}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["replyCount"] == 2
+
+
+def test_get_posts_by_id_with_deleted_reply_excludes_from_reply_count():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    requests.post(
+        f"{BASE_URL}/posts/{post_id}/replies",
+        json={"userId": user_id, "content": "Active reply"},
+    )
+    deleted_reply = requests.post(
+        f"{BASE_URL}/posts/{post_id}/replies",
+        json={"userId": user_id, "content": "To be deleted"},
+    )
+    assert deleted_reply.status_code == 201
+    deleted_reply_id = deleted_reply.json()["replyPostId"]
+
+    requests.delete(f"{BASE_URL}/posts/{deleted_reply_id}", json={"userId": user_id})
+
+    response = requests.get(f"{BASE_URL}/posts/{post_id}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["replyCount"] == 1
+
+
+def test_get_posts_with_reposted_post_and_user_id_returns_is_reposted_true():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
+    created = post_posts.sync(client=client, body=body)
+    assert created is not None
+    post_id = str(created.post_id)
+
+    repost_response = requests.post(
+        f"{BASE_URL}/posts/{post_id}/reposts",
+        json={"userId": user_id},
+    )
+    assert repost_response.status_code == 201
+
+    response = requests.get(
+        f"{BASE_URL}/posts",
+        params={"ids": post_id, "userId": user_id},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["posts"]) == 1
+    assert data["posts"][0]["repostCount"] == 1
+    assert data["posts"][0]["isRepostedByCurrentUser"] is True
+
+
+def test_get_posts_with_replies_returns_reply_count():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
+    created = post_posts.sync(client=client, body=body)
+    assert created is not None
+    post_id = str(created.post_id)
+
+    requests.post(
+        f"{BASE_URL}/posts/{post_id}/replies",
+        json={"userId": user_id, "content": f"Reply {uuid4().hex[:8]}"},
+    )
+    requests.post(
+        f"{BASE_URL}/posts/{post_id}/replies",
+        json={"userId": user_id, "content": f"Reply {uuid4().hex[:8]}"},
+    )
+
+    response = requests.get(f"{BASE_URL}/posts", params={"ids": post_id})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["posts"]) == 1
+    assert data["posts"][0]["replyCount"] == 2
+
+
 def test_get_posts_with_limit_and_offset_returns_paginated_results():
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = auth_response.user_id
 
-    posts = [
-        post_posts.sync(client=client, body=PostPostsBody(user_id=user_id, content=f"Post {i} {uuid4().hex[:8]}"))
-        for i in range(5)
-    ]
-    assert all(p is not None for p in posts)
-    all_ids = ",".join(str(p.post_id) for p in posts)
+    post1 = post_posts.sync(client=client, body=PostPostsBody(user_id=user_id, content=f"Post 0 {uuid4().hex[:8]}"))
+    post2 = post_posts.sync(client=client, body=PostPostsBody(user_id=user_id, content=f"Post 1 {uuid4().hex[:8]}"))
+    post3 = post_posts.sync(client=client, body=PostPostsBody(user_id=user_id, content=f"Post 2 {uuid4().hex[:8]}"))
+    post4 = post_posts.sync(client=client, body=PostPostsBody(user_id=user_id, content=f"Post 3 {uuid4().hex[:8]}"))
+    post5 = post_posts.sync(client=client, body=PostPostsBody(user_id=user_id, content=f"Post 4 {uuid4().hex[:8]}"))
+    all_ids = f"{post1.post_id},{post2.post_id},{post3.post_id},{post4.post_id},{post5.post_id}"
 
     response = requests.get(
         f"{BASE_URL}/posts",
