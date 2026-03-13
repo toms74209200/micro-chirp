@@ -91,5 +91,8 @@ class ViewServiceTest {
 
         val events = viewEventRepository.findByPostIdOrderByOccurredAtAsc(postId)
         assertThat(events).hasSize(2)
+
+        val getPostResult = postService.getPost(postId, null) as com.example.post.PostRetrievalResult.Success
+        assertThat(getPostResult.viewCount).isEqualTo(2)
     }
 }

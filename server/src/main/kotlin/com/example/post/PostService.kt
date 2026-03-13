@@ -221,7 +221,7 @@ class PostService(
 
         val viewCount =
             try {
-                viewEventRepository.findByPostIdOrderByOccurredAtAsc(postId).size
+                viewEventRepository.countByPostId(postId).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             } catch (e: DataAccessException) {
                 return PostRetrievalResult.Failure(e)
             }
@@ -290,13 +290,12 @@ class PostService(
             }
         val repostsByPostId = allRepostEvents.groupBy { it.postId }
 
-        val allViewEvents =
+        val viewCountByPostId =
             try {
-                viewEventRepository.findByPostIdInOrderByOccurredAtAsc(paginatedPostIds)
+                viewEventRepository.countsByPostIdIn(paginatedPostIds).associate { it.getPostId() to it.getCount().coerceAtMost(Int.MAX_VALUE.toLong()).toInt() }
             } catch (e: DataAccessException) {
                 return PostsRetrievalResult.Failure(e)
             }
-        val viewsByPostId = allViewEvents.groupBy { it.postId }
 
         val replyCreatedEvents =
             try {
@@ -326,7 +325,7 @@ class PostService(
                 val replyPostIds = replyPostIdsByParent[postId] ?: emptyList()
                 val replyEventsByPostId = replyPostIds.associateWith { allReplyEventsByPostId[it] ?: emptyList() }
                 val replyCount = countActiveReplies(replyEventsByPostId, objectMapper)
-                val viewCount = (viewsByPostId[postId] ?: emptyList()).size
+                val viewCount = viewCountByPostId[postId] ?: 0
                 PostsRetrievalResult.PostItem(
                     postId = postId,
                     replyToPostId = parentPostId,
