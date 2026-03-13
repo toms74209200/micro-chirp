@@ -96,6 +96,7 @@ class PostService(
     private val userRepository: com.example.auth.UserRepository,
     private val likeEventRepository: com.example.like.LikeEventRepository,
     private val repostEventRepository: com.example.repost.RepostEventRepository,
+    private val viewEventRepository: com.example.view.ViewEventRepository,
     private val objectMapper: ObjectMapper,
 ) {
     @WithSpan
@@ -218,6 +219,13 @@ class PostService(
                 countActiveReplies(allReplyEvents.groupBy { it.postId }, objectMapper)
             }
 
+        val viewCount =
+            try {
+                viewEventRepository.countByPostId(postId).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            } catch (e: DataAccessException) {
+                return PostRetrievalResult.Failure(e)
+            }
+
         return PostRetrievalResult.Success(
             postId = postId,
             userId = aggregatedPost.userId,
@@ -226,7 +234,7 @@ class PostService(
             likeCount = likeCount,
             repostCount = aggregatedReposts.repostCount,
             replyCount = replyCount,
-            viewCount = 0,
+            viewCount = viewCount,
             isLikedByCurrentUser = isLikedByCurrentUser,
             isRepostedByCurrentUser = isRepostedByCurrentUser,
         )
@@ -282,6 +290,13 @@ class PostService(
             }
         val repostsByPostId = allRepostEvents.groupBy { it.postId }
 
+        val viewCountByPostId =
+            try {
+                viewEventRepository.countsByPostIdIn(paginatedPostIds).associate { it.getPostId() to it.getCount().coerceAtMost(Int.MAX_VALUE.toLong()).toInt() }
+            } catch (e: DataAccessException) {
+                return PostsRetrievalResult.Failure(e)
+            }
+
         val replyCreatedEvents =
             try {
                 postEventRepository.findByReplyToPostIdInOrderByOccurredAtAsc(paginatedPostIds)
@@ -310,6 +325,7 @@ class PostService(
                 val replyPostIds = replyPostIdsByParent[postId] ?: emptyList()
                 val replyEventsByPostId = replyPostIds.associateWith { allReplyEventsByPostId[it] ?: emptyList() }
                 val replyCount = countActiveReplies(replyEventsByPostId, objectMapper)
+                val viewCount = viewCountByPostId[postId] ?: 0
                 PostsRetrievalResult.PostItem(
                     postId = postId,
                     replyToPostId = parentPostId,
@@ -319,7 +335,7 @@ class PostService(
                     likeCount = aggregatedLikes.likeCount,
                     repostCount = aggregatedReposts.repostCount,
                     replyCount = replyCount,
-                    viewCount = 0,
+                    viewCount = viewCount,
                     isLikedByCurrentUser =
                         currentUserId?.let { uid ->
                             when (

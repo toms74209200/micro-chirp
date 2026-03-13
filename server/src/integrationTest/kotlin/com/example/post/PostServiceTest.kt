@@ -11,6 +11,7 @@ import com.example.reply.ReplyService
 import com.example.repost.RepostEvent
 import com.example.repost.RepostEventRepository
 import com.example.repost.RepostEventType
+import com.example.view.ViewService
 import org.apache.commons.lang3.RandomStringUtils
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -40,6 +41,9 @@ class PostServiceTest {
 
     @Autowired
     private lateinit var replyService: ReplyService
+
+    @Autowired
+    private lateinit var viewService: ViewService
 
     @Test
     fun `when createPost with valid content then returns Success with post details`() {
@@ -439,6 +443,36 @@ class PostServiceTest {
         assertThat(success.posts).hasSize(1)
         assertThat(success.posts[0].repostCount).isEqualTo(1)
         assertThat(success.posts[0].isRepostedByCurrentUser).isTrue()
+    }
+
+    @Test
+    fun `when getPost with views then returns correct viewCount`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val createResult = postService.createPost(userId, "Test post") as PostCreationResult.Success
+        val postId = createResult.postId
+        viewService.recordView(postId, userId)
+
+        val result = postService.getPost(postId, null)
+
+        assertThat(result).isInstanceOf(PostRetrievalResult.Success::class.java)
+        val success = result as PostRetrievalResult.Success
+        assertThat(success.viewCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `when getPosts with views then returns correct viewCount`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        val post = postService.createPost(userId, "Post") as PostCreationResult.Success
+        viewService.recordView(post.postId, userId)
+
+        val result = postService.getPosts(listOf(post.postId), null, 20, 0)
+
+        assertThat(result).isInstanceOf(PostsRetrievalResult.Success::class.java)
+        val success = result as PostsRetrievalResult.Success
+        assertThat(success.posts).hasSize(1)
+        assertThat(success.posts[0].viewCount).isEqualTo(1)
     }
 
     @Test
