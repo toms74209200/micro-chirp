@@ -323,14 +323,13 @@ paths:
             minimum: 1
             maximum: 100
           description: Number of posts to retrieve
-        - name: offset
+        - name: afterPostId
           in: query
           required: false
           schema:
-            type: integer
-            default: 0
-            minimum: 0
-          description: Offset for pagination
+            type: string
+            format: uuid
+          description: Cursor for pagination - returns posts older than this post ID
         - name: userId
           in: query
           required: false
@@ -393,20 +392,12 @@ paths:
                         - repostCount
                         - replyCount
                         - viewCount
-                  total:
-                    type: integer
-                    description: Total number of posts
                   limit:
                     type: integer
                     description: Number of posts requested
-                  offset:
-                    type: integer
-                    description: Offset used for pagination
                 required:
                   - posts
-                  - total
                   - limit
-                  - offset
 
   /timeline/users/{userId}:
     get:
@@ -432,14 +423,13 @@ paths:
             minimum: 1
             maximum: 100
           description: Number of posts to retrieve
-        - name: offset
+        - name: afterPostId
           in: query
           required: false
           schema:
-            type: integer
-            default: 0
-            minimum: 0
-          description: Offset for pagination
+            type: string
+            format: uuid
+          description: Cursor for pagination - returns posts older than this post ID
         - name: currentUserId
           in: query
           required: false
@@ -502,20 +492,12 @@ paths:
                         - repostCount
                         - replyCount
                         - viewCount
-                  total:
-                    type: integer
-                    description: Total number of posts by this user
                   limit:
                     type: integer
                     description: Number of posts requested
-                  offset:
-                    type: integer
-                    description: Offset used for pagination
                 required:
                   - posts
-                  - total
                   - limit
-                  - offset
 
   /posts/{postId}/likes:
     post:
