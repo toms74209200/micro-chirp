@@ -41,8 +41,8 @@ class TimelineServiceTest {
 
     @BeforeEach
     fun refreshMv() {
-        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW global_timeline_mv")
-        mvRefreshLogRepository.findById(TimelineService.GLOBAL_TIMELINE_MV_NAME).ifPresent { log ->
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
             log.lastRefreshedAt = Instant.now()
             mvRefreshLogRepository.save(log)
         }
@@ -56,13 +56,13 @@ class TimelineServiceTest {
         val post1 = postService.createPost(userId, "Post 1") as PostCreationResult.Success
         val post2 = postService.createPost(userId, "Post 2") as PostCreationResult.Success
 
-        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW global_timeline_mv")
-        mvRefreshLogRepository.findById(TimelineService.GLOBAL_TIMELINE_MV_NAME).ifPresent { log ->
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
             log.lastRefreshedAt = Instant.now()
             mvRefreshLogRepository.save(log)
         }
 
-        val result = timelineService.getGlobalTimeline(20, 0, null) as TimelineResult.Success
+        val result = timelineService.getGlobalTimeline(20, null, null) as TimelineResult.Success
 
         val returnedIds = result.posts.map { it.postId }
         val post1Index = returnedIds.indexOf(post1.postId)
@@ -81,32 +81,33 @@ class TimelineServiceTest {
         val post = postService.createPost(userId, "To be deleted") as PostCreationResult.Success
         postService.deletePost(post.postId, userId)
 
-        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW global_timeline_mv")
-        mvRefreshLogRepository.findById(TimelineService.GLOBAL_TIMELINE_MV_NAME).ifPresent { log ->
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
             log.lastRefreshedAt = Instant.now()
             mvRefreshLogRepository.save(log)
         }
 
-        val result = timelineService.getGlobalTimeline(100, 0, null) as TimelineResult.Success
+        val result = timelineService.getGlobalTimeline(100, null, null) as TimelineResult.Success
 
         assertThat(result.posts.map { it.postId }).doesNotContain(post.postId)
     }
 
     @Test
-    fun `getGlobalTimeline respects limit and offset`() {
+    fun `getGlobalTimeline respects limit and cursor`() {
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
         repeat(5) { i -> postService.createPost(userId, "Pagination post $i") }
 
-        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW global_timeline_mv")
-        mvRefreshLogRepository.findById(TimelineService.GLOBAL_TIMELINE_MV_NAME).ifPresent { log ->
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
             log.lastRefreshedAt = Instant.now()
             mvRefreshLogRepository.save(log)
         }
 
-        val page1 = timelineService.getGlobalTimeline(2, 0, null) as TimelineResult.Success
-        val page2 = timelineService.getGlobalTimeline(2, 2, null) as TimelineResult.Success
+        val page1 = timelineService.getGlobalTimeline(2, null, null) as TimelineResult.Success
+        val cursor = page1.posts.last().postId
+        val page2 = timelineService.getGlobalTimeline(2, cursor, null) as TimelineResult.Success
 
         assertThat(page1.posts).hasSize(2)
         assertThat(page2.posts).hasSize(2)
@@ -132,13 +133,13 @@ class TimelineServiceTest {
             ),
         )
 
-        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW global_timeline_mv")
-        mvRefreshLogRepository.findById(TimelineService.GLOBAL_TIMELINE_MV_NAME).ifPresent { log ->
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
             log.lastRefreshedAt = Instant.now()
             mvRefreshLogRepository.save(log)
         }
 
-        val result = timelineService.getGlobalTimeline(100, 0, null) as TimelineResult.Success
+        val result = timelineService.getGlobalTimeline(100, null, null) as TimelineResult.Success
         val postItem = result.posts.find { it.postId == post.postId }
 
         assertThat(postItem).isNotNull()
@@ -150,15 +151,15 @@ class TimelineServiceTest {
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
-        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW global_timeline_mv")
-        mvRefreshLogRepository.findById(TimelineService.GLOBAL_TIMELINE_MV_NAME).ifPresent { log ->
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
             log.lastRefreshedAt = Instant.now()
             mvRefreshLogRepository.save(log)
         }
 
         val deltaPost = postService.createPost(userId, "Delta post") as PostCreationResult.Success
 
-        val result = timelineService.getGlobalTimeline(100, 0, null) as TimelineResult.Success
+        val result = timelineService.getGlobalTimeline(100, null, null) as TimelineResult.Success
 
         assertThat(result.posts.map { it.postId }).contains(deltaPost.postId)
     }
@@ -168,8 +169,8 @@ class TimelineServiceTest {
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
-        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW global_timeline_mv")
-        mvRefreshLogRepository.findById(TimelineService.GLOBAL_TIMELINE_MV_NAME).ifPresent { log ->
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
             log.lastRefreshedAt = Instant.now()
             mvRefreshLogRepository.save(log)
         }
@@ -177,7 +178,7 @@ class TimelineServiceTest {
         val post = postService.createPost(userId, "Delta deleted post") as PostCreationResult.Success
         postService.deletePost(post.postId, userId)
 
-        val result = timelineService.getGlobalTimeline(100, 0, null) as TimelineResult.Success
+        val result = timelineService.getGlobalTimeline(100, null, null) as TimelineResult.Success
 
         assertThat(result.posts.map { it.postId }).doesNotContain(post.postId)
     }
@@ -198,13 +199,13 @@ class TimelineServiceTest {
             ),
         )
 
-        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW global_timeline_mv")
-        mvRefreshLogRepository.findById(TimelineService.GLOBAL_TIMELINE_MV_NAME).ifPresent { log ->
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
             log.lastRefreshedAt = Instant.now()
             mvRefreshLogRepository.save(log)
         }
 
-        val result = timelineService.getGlobalTimeline(100, 0, userId) as TimelineResult.Success
+        val result = timelineService.getGlobalTimeline(100, null, userId) as TimelineResult.Success
         val postItem = result.posts.find { it.postId == post.postId }
 
         assertThat(postItem!!.isLikedByCurrentUser).isTrue()

@@ -2,7 +2,6 @@ package com.example.timeline
 
 import com.example.api.TimelineApi
 import com.example.model.GetPostsById200Response
-import com.example.model.GetTimelineByUserId200Response
 import com.example.model.GetTimelineGlobal200Response
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -21,17 +20,15 @@ class TimelineController(
 
     override fun getTimelineGlobal(
         limit: Int,
-        offset: Int,
+        afterPostId: UUID?,
         userId: UUID?,
     ): ResponseEntity<GetTimelineGlobal200Response> =
-        when (val result = timelineService.getGlobalTimeline(limit, offset, userId)) {
+        when (val result = timelineService.getGlobalTimeline(limit, afterPostId, userId)) {
             is TimelineResult.Success -> {
                 ResponseEntity.ok(
                     GetTimelineGlobal200Response(
                         posts = result.posts.map { it.toResponse() },
-                        total = result.total,
                         limit = result.limit,
-                        offset = result.offset,
                     ),
                 )
             }
@@ -41,9 +38,9 @@ class TimelineController(
     override fun getTimelineByUserId(
         userId: UUID,
         limit: Int,
-        offset: Int,
+        afterPostId: UUID?,
         currentUserId: UUID?,
-    ): ResponseEntity<GetTimelineByUserId200Response> = TODO()
+    ): ResponseEntity<GetTimelineGlobal200Response> = TODO()
 
     @ExceptionHandler(Exception::class)
     fun handleException(e: Exception): ResponseEntity<Void> {

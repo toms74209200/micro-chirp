@@ -3,6 +3,7 @@ package com.example.timeline
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 import java.sql.ResultSet
+import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
 
@@ -17,22 +18,64 @@ data class TimelinePostRow(
 class TimelineJdbcRepository(
     private val jdbcTemplate: JdbcTemplate,
 ) {
-    fun findGlobalTimeline(
-        limit: Int,
-        offset: Int,
-    ): List<TimelinePostRow> =
+    fun findGlobalTimeline(limit: Int): List<TimelinePostRow> =
         jdbcTemplate.query(
-            "SELECT post_id, user_id, content, created_at FROM global_timeline_mv ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            "SELECT post_id, user_id, content, created_at FROM posts_mv ORDER BY created_at DESC, post_id DESC LIMIT ?",
             { rs, _ -> rs.toTimelinePostRow() },
             limit,
-            offset,
         )
 
-    fun countGlobalTimeline(): Long =
-        jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM global_timeline_mv",
-            Long::class.java,
-        ) ?: 0L
+    fun findGlobalTimelineAfter(
+        limit: Int,
+        cursorCreatedAt: Instant,
+        cursorPostId: UUID,
+    ): List<TimelinePostRow> =
+        jdbcTemplate.query(
+            """
+            SELECT post_id, user_id, content, created_at FROM posts_mv
+            WHERE (created_at < ?) OR (created_at = ? AND post_id < ?::uuid)
+            ORDER BY created_at DESC, post_id DESC
+            LIMIT ?
+            """.trimIndent(),
+            { rs, _ -> rs.toTimelinePostRow() },
+            Timestamp.from(cursorCreatedAt),
+            Timestamp.from(cursorCreatedAt),
+            cursorPostId.toString(),
+            limit,
+        )
+
+    fun findUserTimeline(
+        userId: UUID,
+        limit: Int,
+    ): List<TimelinePostRow> =
+        jdbcTemplate.query(
+            "SELECT post_id, user_id, content, created_at FROM posts_mv WHERE user_id = ?::uuid ORDER BY created_at DESC, post_id DESC LIMIT ?",
+            { rs, _ -> rs.toTimelinePostRow() },
+            userId.toString(),
+            limit,
+        )
+
+    fun findUserTimelineAfter(
+        userId: UUID,
+        limit: Int,
+        cursorCreatedAt: Instant,
+        cursorPostId: UUID,
+    ): List<TimelinePostRow> =
+        jdbcTemplate.query(
+            """
+            SELECT post_id, user_id, content, created_at FROM posts_mv
+            WHERE user_id = ?::uuid
+            AND ((created_at < ?) OR (created_at = ? AND post_id < ?::uuid))
+            ORDER BY created_at DESC, post_id DESC
+            LIMIT ?
+            """.trimIndent(),
+            { rs, _ -> rs.toTimelinePostRow() },
+            userId.toString(),
+            Timestamp.from(cursorCreatedAt),
+            Timestamp.from(cursorCreatedAt),
+            cursorPostId.toString(),
+            limit,
+        )
 
     private fun ResultSet.toTimelinePostRow() =
         TimelinePostRow(

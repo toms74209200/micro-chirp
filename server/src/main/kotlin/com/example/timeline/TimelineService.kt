@@ -32,9 +32,7 @@ sealed interface TimelineResult {
 
     data class Success(
         val posts: List<PostItem>,
-        val total: Int,
         val limit: Int,
-        val offset: Int,
     ) : TimelineResult
 
     data class Failure(
@@ -55,12 +53,19 @@ class TimelineService(
     @WithSpan
     fun getGlobalTimeline(
         limit: Int,
-        offset: Int,
+        afterPostId: UUID?,
         currentUserId: UUID?,
     ): TimelineResult {
+        val cursor: Pair<Instant, UUID>? =
+            afterPostId?.let {
+                resolveCursor(it) ?: return TimelineResult.Failure(
+                    IllegalArgumentException("Post not found: $afterPostId"),
+                )
+            }
+
         val lastRefreshedAt =
             mvRefreshLogRepository
-                .findById(GLOBAL_TIMELINE_MV_NAME)
+                .findById(POSTS_MV_NAME)
                 .map { it.lastRefreshedAt }
                 .orElse(Instant.EPOCH)
 
@@ -73,15 +78,21 @@ class TimelineService(
 
         val delta = buildTimelineDelta(deltaPostEvents.groupBy { it.postId }, { _ -> true }, objectMapper)
 
-        val deltaOnPage = delta.activePosts.drop(offset).take(limit)
+        val deltaOnPage =
+            delta.activePosts
+                .filter { cursor == null || it.createdAt < cursor.first || (it.createdAt == cursor.first && it.postId < cursor.second) }
+                .take(limit)
         val remainingForMv = limit - deltaOnPage.size
-        val mvOffset = (offset - delta.activePosts.size).coerceAtLeast(0)
 
         val mvRawPosts =
             try {
                 if (remainingForMv > 0) {
                     val mvBuffer = remainingForMv + delta.deletedIds.size
-                    timelineJdbcRepository.findGlobalTimeline(mvBuffer.coerceAtLeast(remainingForMv), mvOffset)
+                    if (cursor == null) {
+                        timelineJdbcRepository.findGlobalTimeline(mvBuffer.coerceAtLeast(remainingForMv))
+                    } else {
+                        timelineJdbcRepository.findGlobalTimelineAfter(mvBuffer.coerceAtLeast(remainingForMv), cursor.first, cursor.second)
+                    }
                 } else {
                     emptyList()
                 }
@@ -92,16 +103,8 @@ class TimelineService(
         val mvPosts = mvRawPosts.filter { it.postId !in delta.deletedIds }.take(remainingForMv)
         val pagePosts = deltaOnPage + mvPosts
 
-        val mvTotal =
-            try {
-                timelineJdbcRepository.countGlobalTimeline()
-            } catch (e: Exception) {
-                return TimelineResult.Failure(Exception("Failed to count timeline MV: ${e.message}", e))
-            }
-        val total = (mvTotal + delta.activePosts.size - delta.deletedFromMvCount.toLong()).coerceAtLeast(0L).toInt()
-
         if (pagePosts.isEmpty()) {
-            return TimelineResult.Success(emptyList(), total, limit, offset)
+            return TimelineResult.Success(emptyList(), limit)
         }
 
         val postIds = pagePosts.map { it.postId }
@@ -186,10 +189,15 @@ class TimelineService(
                 )
             }
 
-        return TimelineResult.Success(enrichedPosts, total, limit, offset)
+        return TimelineResult.Success(enrichedPosts, limit)
+    }
+
+    private fun resolveCursor(afterPostId: UUID): Pair<Instant, UUID>? {
+        val event = postEventRepository.findFirstByPostIdAndEventType(afterPostId, "post_created")
+        return event?.occurredAt?.let { it to afterPostId }
     }
 
     companion object {
-        const val GLOBAL_TIMELINE_MV_NAME = "global_timeline_mv"
+        const val POSTS_MV_NAME = "posts_mv"
     }
 }
