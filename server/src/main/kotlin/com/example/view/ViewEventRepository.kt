@@ -7,6 +7,7 @@ import java.util.UUID
 
 interface ViewCountByPostId {
     fun getPostId(): UUID
+
     fun getCount(): Long
 }
 

@@ -292,7 +292,10 @@ class PostService(
 
         val viewCountByPostId =
             try {
-                viewEventRepository.countsByPostIdIn(paginatedPostIds).associate { it.getPostId() to it.getCount().coerceAtMost(Int.MAX_VALUE.toLong()).toInt() }
+                viewEventRepository.countsByPostIdIn(paginatedPostIds).associate {
+                    it.getPostId() to
+                        it.getCount().coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                }
             } catch (e: DataAccessException) {
                 return PostsRetrievalResult.Failure(e)
             }
