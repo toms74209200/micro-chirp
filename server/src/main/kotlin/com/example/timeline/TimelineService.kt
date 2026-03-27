@@ -4,6 +4,7 @@ import com.example.like.LikeEventRepository
 import com.example.like.UserLikeStatus
 import com.example.like.aggregateLikeEvents
 import com.example.post.PostEventRepository
+import com.example.post.PostEventType
 import com.example.post.countActiveReplies
 import com.example.repost.RepostEventRepository
 import com.example.repost.UserRepostStatus
@@ -57,10 +58,16 @@ class TimelineService(
         currentUserId: UUID?,
     ): TimelineResult {
         val cursor: Pair<Instant, UUID>? =
-            afterPostId?.let {
-                resolveCursor(it) ?: return TimelineResult.Failure(
-                    IllegalArgumentException("Post not found: $afterPostId"),
-                )
+            if (afterPostId != null) {
+                try {
+                    resolveCursor(afterPostId) ?: return TimelineResult.Failure(
+                        IllegalArgumentException("Post not found: $afterPostId"),
+                    )
+                } catch (e: DataAccessException) {
+                    return TimelineResult.Failure(e)
+                }
+            } else {
+                null
             }
 
         val lastRefreshedAt =
@@ -87,7 +94,7 @@ class TimelineService(
         val mvRawPosts =
             try {
                 if (remainingForMv > 0) {
-                    val mvBuffer = remainingForMv + delta.deletedIds.size
+                    val mvBuffer = remainingForMv + delta.deletedFromMvCount
                     if (cursor == null) {
                         timelineJdbcRepository.findGlobalTimeline(mvBuffer.coerceAtLeast(remainingForMv))
                     } else {
@@ -193,7 +200,7 @@ class TimelineService(
     }
 
     private fun resolveCursor(afterPostId: UUID): Pair<Instant, UUID>? {
-        val event = postEventRepository.findFirstByPostIdAndEventType(afterPostId, "post_created")
+        val event = postEventRepository.findFirstByPostIdAndEventType(afterPostId, PostEventType.POST_CREATED.value)
         return event?.occurredAt?.let { it to afterPostId }
     }
 

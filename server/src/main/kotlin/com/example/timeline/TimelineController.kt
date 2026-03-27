@@ -24,14 +24,13 @@ class TimelineController(
         userId: UUID?,
     ): ResponseEntity<GetTimelineGlobal200Response> =
         when (val result = timelineService.getGlobalTimeline(limit, afterPostId, userId)) {
-            is TimelineResult.Success -> {
+            is TimelineResult.Success ->
                 ResponseEntity.ok(
                     GetTimelineGlobal200Response(
                         posts = result.posts.map { it.toResponse() },
                         limit = result.limit,
                     ),
                 )
-            }
             is TimelineResult.Failure -> throw result.exception
         }
 
@@ -41,6 +40,12 @@ class TimelineController(
         afterPostId: UUID?,
         currentUserId: UUID?,
     ): ResponseEntity<GetTimelineGlobal200Response> = TODO()
+
+    @ExceptionHandler(IllegalArgumentException::class)
+    fun handleIllegalArgumentException(e: IllegalArgumentException): ResponseEntity<Void> {
+        logger.info("Post not found: {}", e.message)
+        return ResponseEntity.notFound().build()
+    }
 
     @ExceptionHandler(Exception::class)
     fun handleException(e: Exception): ResponseEntity<Void> {

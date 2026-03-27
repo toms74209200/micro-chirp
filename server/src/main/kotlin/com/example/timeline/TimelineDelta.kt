@@ -23,7 +23,10 @@ fun buildTimelineDelta(
                 val agg = aggregatePostEvents(events, objectMapper) ?: return@mapNotNull null
                 if (!userFilter(agg.userId)) return@mapNotNull null
                 TimelinePostRow(postId, agg.userId, agg.content, agg.createdAt)
-            }.sortedByDescending { it.createdAt }
+            }.sortedWith(
+                compareByDescending<TimelinePostRow> { it.createdAt }
+                    .thenByDescending { it.postId },
+            )
 
     val deletedIds =
         deltaByPostId
