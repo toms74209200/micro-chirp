@@ -184,6 +184,97 @@ class TimelineServiceTest {
     }
 
     @Test
+    fun `getUserTimeline returns only posts by specified user`() {
+        val user1 = UUID.randomUUID()
+        val user2 = UUID.randomUUID()
+        userRepository.save(User(user1, Instant.now()))
+        userRepository.save(User(user2, Instant.now()))
+
+        val post1 = postService.createPost(user1, "User1 post") as PostCreationResult.Success
+        val post2 = postService.createPost(user2, "User2 post") as PostCreationResult.Success
+
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
+            log.lastRefreshedAt = Instant.now()
+            mvRefreshLogRepository.save(log)
+        }
+
+        val result = timelineService.getUserTimeline(user1, 20, null, null) as TimelineResult.Success
+
+        assertThat(result.posts.map { it.postId }).contains(post1.postId)
+        assertThat(result.posts.map { it.postId }).doesNotContain(post2.postId)
+    }
+
+    @Test
+    fun `getUserTimeline shows delta posts by target user`() {
+        val user1 = UUID.randomUUID()
+        val user2 = UUID.randomUUID()
+        userRepository.save(User(user1, Instant.now()))
+        userRepository.save(User(user2, Instant.now()))
+
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
+            log.lastRefreshedAt = Instant.now()
+            mvRefreshLogRepository.save(log)
+        }
+
+        val deltaPost1 = postService.createPost(user1, "Delta post by user1") as PostCreationResult.Success
+        postService.createPost(user2, "Delta post by user2") as PostCreationResult.Success
+
+        val result = timelineService.getUserTimeline(user1, 20, null, null) as TimelineResult.Success
+
+        assertThat(result.posts.map { it.postId }).contains(deltaPost1.postId)
+        assertThat(result.posts.map { it.userId }.toSet()).containsOnly(user1)
+    }
+
+    @Test
+    fun `getUserTimeline excludes deleted posts from other users`() {
+        val user1 = UUID.randomUUID()
+        val user2 = UUID.randomUUID()
+        userRepository.save(User(user1, Instant.now()))
+        userRepository.save(User(user2, Instant.now()))
+
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
+            log.lastRefreshedAt = Instant.now()
+            mvRefreshLogRepository.save(log)
+        }
+
+        postService.createPost(user1, "User1 post 1")
+        postService.createPost(user1, "User1 post 2")
+        postService.createPost(user1, "User1 post 3")
+
+        val user2Post = postService.createPost(user2, "User2 post to delete") as PostCreationResult.Success
+        postService.deletePost(user2Post.postId, user2)
+
+        val result = timelineService.getUserTimeline(user1, 10, null, null) as TimelineResult.Success
+
+        assertThat(result.posts).hasSize(3)
+        assertThat(result.posts.map { it.userId }.toSet()).containsOnly(user1)
+    }
+
+    @Test
+    fun `getUserTimeline excludes mv post deleted in delta`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+
+        val postInMv = postService.createPost(userId, "Post that will be deleted") as PostCreationResult.Success
+        val postKept = postService.createPost(userId, "Post that stays") as PostCreationResult.Success
+
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
+            log.lastRefreshedAt = Instant.now()
+            mvRefreshLogRepository.save(log)
+        }
+
+        postService.deletePost(postInMv.postId, userId)
+
+        val result = timelineService.getUserTimeline(userId, 10, null, null) as TimelineResult.Success
+
+        assertThat(result.posts.map { it.postId }).containsOnly(postKept.postId)
+    }
+
+    @Test
     fun `getGlobalTimeline returns isLikedByCurrentUser when userId provided`() {
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))

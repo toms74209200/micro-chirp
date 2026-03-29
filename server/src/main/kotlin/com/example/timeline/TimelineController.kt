@@ -39,7 +39,17 @@ class TimelineController(
         limit: Int,
         afterPostId: UUID?,
         currentUserId: UUID?,
-    ): ResponseEntity<GetTimelineGlobal200Response> = TODO()
+    ): ResponseEntity<GetTimelineGlobal200Response> =
+        when (val result = timelineService.getUserTimeline(userId, limit, afterPostId, currentUserId)) {
+            is TimelineResult.Success ->
+                ResponseEntity.ok(
+                    GetTimelineGlobal200Response(
+                        posts = result.posts.map { it.toResponse() },
+                        limit = result.limit,
+                    ),
+                )
+            is TimelineResult.Failure -> throw result.exception
+        }
 
     @ExceptionHandler(IllegalArgumentException::class)
     fun handleIllegalArgumentException(e: IllegalArgumentException): ResponseEntity<Void> {
