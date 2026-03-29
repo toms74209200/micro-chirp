@@ -60,9 +60,10 @@ class TimelineService(
         val cursor: Pair<Instant, UUID>? =
             if (afterPostId != null) {
                 try {
-                    resolveCursor(afterPostId) ?: return TimelineResult.Failure(
-                        IllegalArgumentException("Post not found: $afterPostId"),
-                    )
+                    val event =
+                        postEventRepository.findFirstByPostIdAndEventType(afterPostId, PostEventType.POST_CREATED.value)
+                            ?: return TimelineResult.Failure(IllegalArgumentException("Post not found: $afterPostId"))
+                    event.occurredAt to afterPostId
                 } catch (e: DataAccessException) {
                     return TimelineResult.Failure(e)
                 }
@@ -209,9 +210,19 @@ class TimelineService(
         val cursor: Pair<Instant, UUID>? =
             if (afterPostId != null) {
                 try {
-                    resolveCursor(afterPostId) ?: return TimelineResult.Failure(
-                        IllegalArgumentException("Post not found: $afterPostId"),
-                    )
+                    val event =
+                        postEventRepository.findFirstByPostIdAndEventType(afterPostId, PostEventType.POST_CREATED.value)
+                            ?: return TimelineResult.Failure(IllegalArgumentException("Post not found: $afterPostId"))
+                    val data =
+                        objectMapper.readValue(event.eventData, Map::class.java) as? Map<*, *>
+                            ?: return TimelineResult.Failure(IllegalArgumentException("Post not found: $afterPostId"))
+                    val userId =
+                        UUID.fromString(
+                            data["userId"] as? String
+                                ?: return TimelineResult.Failure(IllegalArgumentException("Post not found: $afterPostId")),
+                        )
+                    if (userId != targetUserId) return TimelineResult.Failure(IllegalArgumentException("Post not found: $afterPostId"))
+                    event.occurredAt to afterPostId
                 } catch (e: DataAccessException) {
                     return TimelineResult.Failure(e)
                 }
@@ -252,7 +263,12 @@ class TimelineService(
                     if (cursor == null) {
                         timelineJdbcRepository.findUserTimeline(targetUserId, mvBuffer.coerceAtLeast(remainingForMv))
                     } else {
-                        timelineJdbcRepository.findUserTimelineAfter(targetUserId, mvBuffer.coerceAtLeast(remainingForMv), cursor.first, cursor.second)
+                        timelineJdbcRepository.findUserTimelineAfter(
+                            targetUserId,
+                            mvBuffer.coerceAtLeast(remainingForMv),
+                            cursor.first,
+                            cursor.second,
+                        )
                     }
                 } else {
                     emptyList()
@@ -351,11 +367,6 @@ class TimelineService(
             }
 
         return TimelineResult.Success(enrichedPosts, limit)
-    }
-
-    private fun resolveCursor(afterPostId: UUID): Pair<Instant, UUID>? {
-        val event = postEventRepository.findFirstByPostIdAndEventType(afterPostId, PostEventType.POST_CREATED.value)
-        return event?.occurredAt?.let { it to afterPostId }
     }
 
     companion object {

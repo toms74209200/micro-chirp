@@ -275,6 +275,43 @@ class TimelineServiceTest {
     }
 
     @Test
+    fun `getUserTimeline respects limit and cursor`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+
+        repeat(5) { i -> postService.createPost(userId, "User pagination post $i") }
+
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
+            log.lastRefreshedAt = Instant.now()
+            mvRefreshLogRepository.save(log)
+        }
+
+        val page1 = timelineService.getUserTimeline(userId, 2, null, null) as TimelineResult.Success
+        val cursor = page1.posts.last().postId
+        val page2 = timelineService.getUserTimeline(userId, 2, cursor, null) as TimelineResult.Success
+
+        assertThat(page1.posts).hasSize(2)
+        assertThat(page2.posts).hasSize(2)
+        assertThat(page1.posts.map { it.postId }).doesNotContainAnyElementsOf(page2.posts.map { it.postId })
+    }
+
+    @Test
+    fun `getUserTimeline returns 404 result when cursor post belongs to another user`() {
+        val user1 = UUID.randomUUID()
+        val user2 = UUID.randomUUID()
+        userRepository.save(User(user1, Instant.now()))
+        userRepository.save(User(user2, Instant.now()))
+
+        val user2Post = postService.createPost(user2, "User2 post") as PostCreationResult.Success
+
+        val result = timelineService.getUserTimeline(user1, 10, user2Post.postId, null)
+
+        assertThat(result).isInstanceOf(TimelineResult.Failure::class.java)
+        assertThat((result as TimelineResult.Failure).exception).isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+    @Test
     fun `getGlobalTimeline returns isLikedByCurrentUser when userId provided`() {
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
