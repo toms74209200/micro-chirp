@@ -162,17 +162,23 @@ def test_get_timeline_by_user_id_with_another_users_post_returns_only_that_users
     assert create_response is not None
     post_id = str(create_response.post_id)
 
-    post_posts.sync(
+    other_create_response = post_posts.sync(
         client=client,
         body=PostPostsBody(user_id=auth_response2.user_id, content=f"Test content {uuid4().hex[:8]}"),
     )
+    assert other_create_response is not None
+    other_post_id = str(other_create_response.post_id)
 
-    response = requests.get(f"{BASE_URL}/timeline/users/{user_id1}", params={"limit": 1})
+    response = requests.get(f"{BASE_URL}/timeline/users/{user_id1}", params={"limit": 10})
 
     assert response.status_code == 200
     data = response.json()
-    assert data["posts"][0]["postId"] == post_id
-    assert data["posts"][0]["userId"] == user_id1
+    posts = data.get("posts", [])
+    post_ids = [post["postId"] for post in posts]
+    for post in posts:
+        assert post["userId"] == user_id1
+    assert post_id in post_ids
+    assert other_post_id not in post_ids
 
 
 def test_get_timeline_by_user_id_with_deleted_post_returns_empty_posts():
