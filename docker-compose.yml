@@ -11,8 +11,11 @@ services:
 
   database:
     image: postgres:18
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    command: ["postgres"]
     volumes:
       - ./database/schema:/docker-entrypoint-initdb.d
+      - ./database/entrypoint.sh:/entrypoint.sh
     ports:
       - "5432:5432"
     environment:
