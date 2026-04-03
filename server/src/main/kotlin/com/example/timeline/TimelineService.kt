@@ -197,6 +197,14 @@ class TimelineService(
                 )
             }
 
+        if (currentUserId != null) {
+            try {
+                recordViewEvents(postIds, currentUserId)
+            } catch (e: DataAccessException) {
+                return TimelineResult.Failure(e)
+            }
+        }
+
         return TimelineResult.Success(enrichedPosts, limit)
     }
 
@@ -366,7 +374,32 @@ class TimelineService(
                 )
             }
 
+        if (currentUserId != null) {
+            try {
+                recordViewEvents(postIds, currentUserId)
+            } catch (e: DataAccessException) {
+                return TimelineResult.Failure(e)
+            }
+        }
+
         return TimelineResult.Success(enrichedPosts, limit)
+    }
+
+    private fun recordViewEvents(
+        postIds: List<UUID>,
+        userId: UUID,
+    ) {
+        val now = Instant.now()
+        val viewEvents =
+            postIds.map { postId ->
+                com.example.view.ViewEvent(
+                    eventId = UUID.randomUUID(),
+                    postId = postId,
+                    userId = userId,
+                    occurredAt = now,
+                )
+            }
+        viewEventRepository.saveAll(viewEvents)
     }
 
     companion object {
