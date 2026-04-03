@@ -197,6 +197,10 @@ class TimelineService(
                 )
             }
 
+        if (currentUserId != null) {
+            recordViewEvents(postIds, currentUserId)
+        }
+
         return TimelineResult.Success(enrichedPosts, limit)
     }
 
@@ -366,7 +370,28 @@ class TimelineService(
                 )
             }
 
+        if (currentUserId != null) {
+            recordViewEvents(postIds, currentUserId)
+        }
+
         return TimelineResult.Success(enrichedPosts, limit)
+    }
+
+    private fun recordViewEvents(
+        postIds: List<UUID>,
+        userId: UUID,
+    ) {
+        val now = Instant.now()
+        val viewEvents =
+            postIds.map { postId ->
+                com.example.view.ViewEvent(
+                    eventId = UUID.randomUUID(),
+                    postId = postId,
+                    userId = userId,
+                    occurredAt = now,
+                )
+            }
+        viewEventRepository.saveAll(viewEvents)
     }
 
     companion object {

@@ -8,6 +8,7 @@ import com.example.like.LikeEventRepository
 import com.example.like.LikeEventType
 import com.example.post.PostCreationResult
 import com.example.post.PostService
+import com.example.view.ViewEventRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -32,6 +33,9 @@ class TimelineServiceTest {
 
     @Autowired
     private lateinit var likeEventRepository: LikeEventRepository
+
+    @Autowired
+    private lateinit var viewEventRepository: ViewEventRepository
 
     @Autowired
     private lateinit var mvRefreshLogRepository: MvRefreshLogRepository
@@ -337,5 +341,87 @@ class TimelineServiceTest {
         val postItem = result.posts.find { it.postId == post.postId }
 
         assertThat(postItem!!.isLikedByCurrentUser).isTrue()
+    }
+
+    @Test
+    fun `getGlobalTimeline records view events for returned posts when currentUserId provided`() {
+        val userId = UUID.randomUUID()
+        val viewerId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        userRepository.save(User(viewerId, Instant.now()))
+
+        val post = postService.createPost(userId, "Post to view") as PostCreationResult.Success
+
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
+            log.lastRefreshedAt = Instant.now()
+            mvRefreshLogRepository.save(log)
+        }
+
+        timelineService.getGlobalTimeline(20, null, viewerId)
+
+        val viewCount = viewEventRepository.countByPostId(post.postId)
+        assertThat(viewCount).isGreaterThan(0)
+    }
+
+    @Test
+    fun `getGlobalTimeline does not record view events when currentUserId is null`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+
+        val post = postService.createPost(userId, "Post no viewer") as PostCreationResult.Success
+
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
+            log.lastRefreshedAt = Instant.now()
+            mvRefreshLogRepository.save(log)
+        }
+
+        val before = viewEventRepository.countByPostId(post.postId)
+        timelineService.getGlobalTimeline(20, null, null)
+        val after = viewEventRepository.countByPostId(post.postId)
+
+        assertThat(after).isEqualTo(before)
+    }
+
+    @Test
+    fun `getUserTimeline records view events for returned posts when currentUserId provided`() {
+        val userId = UUID.randomUUID()
+        val viewerId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+        userRepository.save(User(viewerId, Instant.now()))
+
+        val post = postService.createPost(userId, "User post to view") as PostCreationResult.Success
+
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
+            log.lastRefreshedAt = Instant.now()
+            mvRefreshLogRepository.save(log)
+        }
+
+        timelineService.getUserTimeline(userId, 20, null, viewerId)
+
+        val viewCount = viewEventRepository.countByPostId(post.postId)
+        assertThat(viewCount).isGreaterThan(0)
+    }
+
+    @Test
+    fun `getUserTimeline does not record view events when currentUserId is null`() {
+        val userId = UUID.randomUUID()
+        userRepository.save(User(userId, Instant.now()))
+
+        val post = postService.createPost(userId, "User post no viewer") as PostCreationResult.Success
+
+        jdbcTemplate.execute("REFRESH MATERIALIZED VIEW posts_mv")
+        mvRefreshLogRepository.findById(TimelineService.POSTS_MV_NAME).ifPresent { log ->
+            log.lastRefreshedAt = Instant.now()
+            mvRefreshLogRepository.save(log)
+        }
+
+        val before = viewEventRepository.countByPostId(post.postId)
+        timelineService.getUserTimeline(userId, 20, null, null)
+        val after = viewEventRepository.countByPostId(post.postId)
+
+        assertThat(after).isEqualTo(before)
     }
 }

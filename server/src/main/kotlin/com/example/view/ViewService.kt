@@ -56,14 +56,12 @@ class ViewService(
         aggregatePostEvents(postEvents, objectMapper)
             ?: return ViewResult.Failure(ViewPostNotFoundException("Post not found"))
 
-        val occurredAt = Instant.now()
-
         val viewEvent =
             ViewEvent(
                 eventId = UUID.randomUUID(),
                 postId = postId,
                 userId = userId,
-                occurredAt = occurredAt,
+                occurredAt = Instant.now(),
             )
 
         return try {
@@ -71,7 +69,7 @@ class ViewService(
             ViewResult.Success(
                 postId = postId,
                 userId = userId,
-                viewedAt = occurredAt,
+                viewedAt = viewEvent.occurredAt,
             )
         } catch (e: DataAccessException) {
             ViewResult.Failure(e)
