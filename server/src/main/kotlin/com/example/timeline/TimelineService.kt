@@ -198,7 +198,11 @@ class TimelineService(
             }
 
         if (currentUserId != null) {
-            recordViewEvents(postIds, currentUserId)
+            try {
+                recordViewEvents(postIds, currentUserId)
+            } catch (e: DataAccessException) {
+                return TimelineResult.Failure(e)
+            }
         }
 
         return TimelineResult.Success(enrichedPosts, limit)
@@ -371,7 +375,11 @@ class TimelineService(
             }
 
         if (currentUserId != null) {
-            recordViewEvents(postIds, currentUserId)
+            try {
+                recordViewEvents(postIds, currentUserId)
+            } catch (e: DataAccessException) {
+                return TimelineResult.Failure(e)
+            }
         }
 
         return TimelineResult.Success(enrichedPosts, limit)
