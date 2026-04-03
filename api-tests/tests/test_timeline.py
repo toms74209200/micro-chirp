@@ -229,6 +229,87 @@ def test_get_timeline_by_user_id_with_reposted_post_and_current_user_id_returns_
     assert data["posts"][0]["isRepostedByCurrentUser"] is True
 
 
+def test_get_timeline_global_with_user_id_increments_view_count():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    body = PostPostsBody(user_id=auth_response.user_id, content=f"Test content {uuid4().hex[:8]}")
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    before = requests.get(f"{BASE_URL}/posts/{post_id}")
+    assert before.json()["viewCount"] == 0
+
+    timeline_response = requests.get(f"{BASE_URL}/timeline/global", params={"limit": 1, "userId": user_id})
+    assert timeline_response.status_code == 200
+
+    after = requests.get(f"{BASE_URL}/posts/{post_id}")
+    assert after.json()["viewCount"] == 1
+
+
+def test_get_timeline_global_without_user_id_does_not_increment_view_count():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+
+    body = PostPostsBody(user_id=auth_response.user_id, content=f"Test content {uuid4().hex[:8]}")
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    before = requests.get(f"{BASE_URL}/posts/{post_id}")
+    assert before.json()["viewCount"] == 0
+
+    timeline_response = requests.get(f"{BASE_URL}/timeline/global", params={"limit": 1})
+    assert timeline_response.status_code == 200
+
+    after = requests.get(f"{BASE_URL}/posts/{post_id}")
+    assert after.json()["viewCount"] == 0
+
+
+def test_get_timeline_by_user_id_with_current_user_id_increments_view_count():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    viewer_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+    viewer_id = str(viewer_response.user_id)
+
+    body = PostPostsBody(user_id=auth_response.user_id, content=f"Test content {uuid4().hex[:8]}")
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    before = requests.get(f"{BASE_URL}/posts/{post_id}")
+    assert before.json()["viewCount"] == 0
+
+    timeline_response = requests.get(f"{BASE_URL}/timeline/users/{user_id}", params={"limit": 1, "currentUserId": viewer_id})
+    assert timeline_response.status_code == 200
+
+    after = requests.get(f"{BASE_URL}/posts/{post_id}")
+    assert after.json()["viewCount"] == 1
+
+
+def test_get_timeline_by_user_id_without_current_user_id_does_not_increment_view_count():
+    client = Client(base_url=BASE_URL)
+    auth_response = post_auth_login.sync(client=client)
+    user_id = str(auth_response.user_id)
+
+    body = PostPostsBody(user_id=auth_response.user_id, content=f"Test content {uuid4().hex[:8]}")
+    create_response = post_posts.sync(client=client, body=body)
+    assert create_response is not None
+    post_id = str(create_response.post_id)
+
+    before = requests.get(f"{BASE_URL}/posts/{post_id}")
+    assert before.json()["viewCount"] == 0
+
+    timeline_response = requests.get(f"{BASE_URL}/timeline/users/{user_id}", params={"limit": 1})
+    assert timeline_response.status_code == 200
+
+    after = requests.get(f"{BASE_URL}/posts/{post_id}")
+    assert after.json()["viewCount"] == 0
+
+
 def test_get_timeline_by_user_id_with_limit_and_cursor_returns_paginated_results():
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
