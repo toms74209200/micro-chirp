@@ -4,6 +4,7 @@ from uuid import uuid4
 import requests
 
 from lib.api_config import BASE_URL
+from lib.tracing import Phases
 from openapi_gen.micro_chirp_api_client.api.auth import post_auth_login
 from openapi_gen.micro_chirp_api_client.api.posts import post_posts
 from openapi_gen.micro_chirp_api_client.client import Client
@@ -13,17 +14,20 @@ UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 ISO8601_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$")
 
 
-def test_post_posts_with_valid_request_returns_201():
+def test_post_posts_with_valid_request_returns_201(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     expected_content = f"Test content {uuid4().hex[:8]}"
+
+    phases.act()
     response = requests.post(
         f"{BASE_URL}/posts",
         json={"userId": user_id, "content": expected_content},
     )
 
+    phases.assert_()
     assert response.status_code == 201
     data = response.json()
     assert UUID_PATTERN.match(data["postId"])
@@ -32,61 +36,71 @@ def test_post_posts_with_valid_request_returns_201():
     assert ISO8601_PATTERN.match(data["createdAt"])
 
 
-def test_post_posts_with_blank_content_returns_400():
+def test_post_posts_with_blank_content_returns_400(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
 
+    phases.act()
     response = requests.post(
         f"{BASE_URL}/posts",
         json={"userId": user_id, "content": "   "},
     )
 
+    phases.assert_()
     assert response.status_code == 400
     data = response.json()
     assert data["error"] == "Content is invalid"
 
 
-def test_post_posts_with_content_exceeding_280_graphemes_returns_400():
+def test_post_posts_with_content_exceeding_280_graphemes_returns_400(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
 
+    phases.act()
     response = requests.post(
         f"{BASE_URL}/posts",
         json={"userId": user_id, "content": "a" * 281},
     )
 
+    phases.assert_()
     assert response.status_code == 400
     data = response.json()
     assert data["error"] == "Content is invalid"
 
 
-def test_post_posts_with_nonexistent_user_id_returns_400():
+def test_post_posts_with_nonexistent_user_id_returns_400(phases: Phases):
+    phases.act()
     expected_content = f"Test content {uuid4().hex[:8]}"
     response = requests.post(
         f"{BASE_URL}/posts",
         json={"userId": "00000000-0000-0000-0000-000000000000", "content": expected_content},
     )
 
+    phases.assert_()
     assert response.status_code == 400
     data = response.json()
     assert data["error"] == "User not found"
 
 
-def test_get_posts_by_id_with_existing_post_returns_200():
+def test_get_posts_by_id_with_existing_post_returns_200(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = auth_response.user_id
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts/{post_id}")
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["postId"] == post_id
@@ -101,27 +115,31 @@ def test_get_posts_by_id_with_existing_post_returns_200():
     assert data["isRepostedByCurrentUser"] is None
 
 
-def test_get_posts_by_id_with_nonexistent_post_returns_404():
+def test_get_posts_by_id_with_nonexistent_post_returns_404(phases: Phases):
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts/00000000-0000-0000-0000-000000000000")
 
+    phases.assert_()
     assert response.status_code == 404
     data = response.json()
     assert data["error"] == "Post not found"
 
 
-def test_get_posts_by_id_with_user_id_parameter_returns_200():
+def test_get_posts_by_id_with_user_id_parameter_returns_200(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = auth_response.user_id
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts/{post_id}", params={"userId": str(user_id)})
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["postId"] == post_id
@@ -131,127 +149,137 @@ def test_get_posts_by_id_with_user_id_parameter_returns_200():
     assert data["isRepostedByCurrentUser"] is False
 
 
-def test_get_posts_by_id_with_deleted_post_returns_404():
+def test_get_posts_by_id_with_deleted_post_returns_404(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = auth_response.user_id
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     delete_response = requests.delete(
         f"{BASE_URL}/posts/{post_id}",
         json={"userId": str(user_id)},
     )
     assert delete_response.status_code == 204
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts/{post_id}")
 
+    phases.assert_()
     assert response.status_code == 404
     data = response.json()
     assert data["error"] == "Post not found"
 
 
-def test_delete_posts_by_id_with_valid_request_returns_204():
+def test_delete_posts_by_id_with_valid_request_returns_204(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = auth_response.user_id
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
 
+    phases.act()
     response = requests.delete(
         f"{BASE_URL}/posts/{post_id}",
         json={"userId": str(user_id)},
     )
 
+    phases.assert_()
     assert response.status_code == 204
 
 
-def test_delete_posts_by_id_with_nonexistent_post_returns_404():
+def test_delete_posts_by_id_with_nonexistent_post_returns_404(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = auth_response.user_id
 
+    phases.act()
     response = requests.delete(
         f"{BASE_URL}/posts/00000000-0000-0000-0000-000000000000",
         json={"userId": str(user_id)},
     )
 
+    phases.assert_()
     assert response.status_code == 404
     data = response.json()
     assert data["error"] == "Post not found"
 
 
-def test_delete_posts_by_id_with_different_user_returns_403():
+def test_delete_posts_by_id_with_different_user_returns_403(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response1 = post_auth_login.sync(client=client)
     user_id1 = auth_response1.user_id
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=user_id1, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     auth_response2 = post_auth_login.sync(client=client)
     user_id2 = auth_response2.user_id
 
+    phases.act()
     response = requests.delete(
         f"{BASE_URL}/posts/{post_id}",
         json={"userId": str(user_id2)},
     )
 
+    phases.assert_()
     assert response.status_code == 403
     data = response.json()
     assert data["error"] == "User is not the post author"
 
 
-def test_get_post_with_liked_post_returns_like_info():
+def test_get_post_with_liked_post_returns_like_info(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=auth_response.user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     like_response = requests.post(
         f"{BASE_URL}/posts/{post_id}/likes",
         json={"userId": user_id},
     )
     assert like_response.status_code == 201
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts/{post_id}", params={"userId": user_id})
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["likeCount"] == 1
     assert data["isLikedByCurrentUser"] is True
 
 
-def test_get_posts_with_empty_ids_returns_200_with_empty_posts():
+def test_get_posts_with_empty_ids_returns_200_with_empty_posts(phases: Phases):
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts", params={"ids": ""})
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["posts"] == []
     assert data["total"] == 0
 
 
-def test_get_posts_with_ids_returns_200():
+def test_get_posts_with_ids_returns_200(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = auth_response.user_id
-
     body1 = PostPostsBody(user_id=user_id, content=f"Post A {uuid4().hex[:8]}")
     body2 = PostPostsBody(user_id=user_id, content=f"Post B {uuid4().hex[:8]}")
     post1 = post_posts.sync(client=client, body=body1)
@@ -260,8 +288,10 @@ def test_get_posts_with_ids_returns_200():
     post_id1 = str(post1.post_id)
     post_id2 = str(post2.post_id)
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts", params={"ids": f"{post_id1},{post_id2}"})
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 2
@@ -279,18 +309,20 @@ def test_get_posts_with_ids_returns_200():
     assert data["posts"][1]["isLikedByCurrentUser"] is None
 
 
-def test_get_posts_with_user_id_returns_like_status():
+def test_get_posts_with_user_id_returns_like_status(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
     created = post_posts.sync(client=client, body=body)
     assert created is not None
     post_id = str(created.post_id)
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts", params={"ids": post_id, "userId": user_id})
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert len(data["posts"]) == 1
@@ -298,27 +330,28 @@ def test_get_posts_with_user_id_returns_like_status():
     assert data["posts"][0]["isRepostedByCurrentUser"] is False
 
 
-def test_get_posts_with_liked_post_and_user_id_returns_is_liked_true():
+def test_get_posts_with_liked_post_and_user_id_returns_is_liked_true(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
     created = post_posts.sync(client=client, body=body)
     assert created is not None
     post_id = str(created.post_id)
-
     like_response = requests.post(
         f"{BASE_URL}/posts/{post_id}/likes",
         json={"userId": user_id},
     )
     assert like_response.status_code == 201
 
+    phases.act()
     response = requests.get(
         f"{BASE_URL}/posts",
         params={"ids": post_id, "userId": user_id},
     )
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert len(data["posts"]) == 1
@@ -326,40 +359,40 @@ def test_get_posts_with_liked_post_and_user_id_returns_is_liked_true():
     assert data["posts"][0]["isLikedByCurrentUser"] is True
 
 
-def test_get_posts_by_id_with_reposted_post_returns_repost_info():
+def test_get_posts_by_id_with_reposted_post_returns_repost_info(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     repost_response = requests.post(
         f"{BASE_URL}/posts/{post_id}/reposts",
         json={"userId": user_id},
     )
     assert repost_response.status_code == 201
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts/{post_id}", params={"userId": user_id})
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["repostCount"] == 1
     assert data["isRepostedByCurrentUser"] is True
 
 
-def test_get_posts_by_id_with_replies_returns_reply_count():
+def test_get_posts_by_id_with_replies_returns_reply_count(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     requests.post(
         f"{BASE_URL}/posts/{post_id}/replies",
         json={"userId": user_id, "content": f"Reply {uuid4().hex[:8]}"},
@@ -369,23 +402,24 @@ def test_get_posts_by_id_with_replies_returns_reply_count():
         json={"userId": user_id, "content": f"Reply {uuid4().hex[:8]}"},
     )
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts/{post_id}")
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["replyCount"] == 2
 
 
-def test_get_posts_by_id_with_deleted_reply_excludes_from_reply_count():
+def test_get_posts_by_id_with_deleted_reply_excludes_from_reply_count(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     requests.post(
         f"{BASE_URL}/posts/{post_id}/replies",
         json={"userId": user_id, "content": "Active reply"},
@@ -396,37 +430,39 @@ def test_get_posts_by_id_with_deleted_reply_excludes_from_reply_count():
     )
     assert deleted_reply.status_code == 201
     deleted_reply_id = deleted_reply.json()["replyPostId"]
-
     requests.delete(f"{BASE_URL}/posts/{deleted_reply_id}", json={"userId": user_id})
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts/{post_id}")
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["replyCount"] == 1
 
 
-def test_get_posts_with_reposted_post_and_user_id_returns_is_reposted_true():
+def test_get_posts_with_reposted_post_and_user_id_returns_is_reposted_true(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
     created = post_posts.sync(client=client, body=body)
     assert created is not None
     post_id = str(created.post_id)
-
     repost_response = requests.post(
         f"{BASE_URL}/posts/{post_id}/reposts",
         json={"userId": user_id},
     )
     assert repost_response.status_code == 201
 
+    phases.act()
     response = requests.get(
         f"{BASE_URL}/posts",
         params={"ids": post_id, "userId": user_id},
     )
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert len(data["posts"]) == 1
@@ -434,16 +470,15 @@ def test_get_posts_with_reposted_post_and_user_id_returns_is_reposted_true():
     assert data["posts"][0]["isRepostedByCurrentUser"] is True
 
 
-def test_get_posts_with_replies_returns_reply_count():
+def test_get_posts_with_replies_returns_reply_count(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     body = PostPostsBody(user_id=auth_response.user_id, content=f"Post {uuid4().hex[:8]}")
     created = post_posts.sync(client=client, body=body)
     assert created is not None
     post_id = str(created.post_id)
-
     requests.post(
         f"{BASE_URL}/posts/{post_id}/replies",
         json={"userId": user_id, "content": f"Reply {uuid4().hex[:8]}"},
@@ -453,19 +488,21 @@ def test_get_posts_with_replies_returns_reply_count():
         json={"userId": user_id, "content": f"Reply {uuid4().hex[:8]}"},
     )
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/posts", params={"ids": post_id})
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert len(data["posts"]) == 1
     assert data["posts"][0]["replyCount"] == 2
 
 
-def test_get_posts_with_limit_and_offset_returns_paginated_results():
+def test_get_posts_with_limit_and_offset_returns_paginated_results(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = auth_response.user_id
-
     post1 = post_posts.sync(client=client, body=PostPostsBody(user_id=user_id, content=f"Post 0 {uuid4().hex[:8]}"))
     post2 = post_posts.sync(client=client, body=PostPostsBody(user_id=user_id, content=f"Post 1 {uuid4().hex[:8]}"))
     post3 = post_posts.sync(client=client, body=PostPostsBody(user_id=user_id, content=f"Post 2 {uuid4().hex[:8]}"))
@@ -473,11 +510,13 @@ def test_get_posts_with_limit_and_offset_returns_paginated_results():
     post5 = post_posts.sync(client=client, body=PostPostsBody(user_id=user_id, content=f"Post 4 {uuid4().hex[:8]}"))
     all_ids = f"{post1.post_id},{post2.post_id},{post3.post_id},{post4.post_id},{post5.post_id}"
 
+    phases.act()
     response = requests.get(
         f"{BASE_URL}/posts",
         params={"ids": all_ids, "limit": 2, "offset": 1},
     )
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 5
