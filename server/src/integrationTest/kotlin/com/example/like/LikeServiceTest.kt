@@ -33,7 +33,7 @@ class LikeServiceTest {
     private lateinit var userRepository: UserRepository
 
     @Test
-    fun `likePost with valid request returns Success`(phases: TestPhases) {
+    fun `when likePost with valid request then returns Success`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -58,7 +58,7 @@ class LikeServiceTest {
     }
 
     @Test
-    fun `likePost with non-existent post returns Failure with LikePostNotFoundException`(phases: TestPhases) {
+    fun `when likePost with non-existent post then returns Failure with LikePostNotFoundException`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -74,7 +74,7 @@ class LikeServiceTest {
     }
 
     @Test
-    fun `likePost with non-existent user returns Failure with LikeUserNotFoundException`(phases: TestPhases) {
+    fun `when likePost with non-existent user then returns Failure with LikeUserNotFoundException`(phases: TestPhases) {
         phases.arrange()
         val authorId = UUID.randomUUID()
         userRepository.save(User(authorId, Instant.now()))
@@ -92,7 +92,7 @@ class LikeServiceTest {
     }
 
     @Test
-    fun `unlikePost with valid request returns Success and creates unlike event`(phases: TestPhases) {
+    fun `when unlikePost with valid request then returns Success and creates unlike event`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -112,7 +112,7 @@ class LikeServiceTest {
     }
 
     @Test
-    fun `unlikePost with non-existent post returns Failure with LikePostNotFoundException`(phases: TestPhases) {
+    fun `when unlikePost with non-existent post then returns Failure with LikePostNotFoundException`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -128,7 +128,7 @@ class LikeServiceTest {
     }
 
     @Test
-    fun `unlikePost with non-existent user returns Failure with LikeUserNotFoundException`(phases: TestPhases) {
+    fun `when unlikePost with non-existent user then returns Failure with LikeUserNotFoundException`(phases: TestPhases) {
         phases.arrange()
         val authorId = UUID.randomUUID()
         userRepository.save(User(authorId, Instant.now()))

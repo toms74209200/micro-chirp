@@ -35,7 +35,7 @@ class ReplyServiceTest {
     private lateinit var userRepository: UserRepository
 
     @Test
-    fun `replyToPost with valid request returns Success`(phases: TestPhases) {
+    fun `when replyToPost with valid request then returns Success`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -62,7 +62,7 @@ class ReplyServiceTest {
     }
 
     @Test
-    fun `replyToPost with non-existent post returns PostNotFound`(phases: TestPhases) {
+    fun `when replyToPost with non-existent post then returns PostNotFound`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -76,7 +76,7 @@ class ReplyServiceTest {
     }
 
     @Test
-    fun `replyToPost with non-existent user returns ValidationFailure`(phases: TestPhases) {
+    fun `when replyToPost with non-existent user then returns ValidationFailure`(phases: TestPhases) {
         phases.arrange()
         val existingUserId = UUID.randomUUID()
         userRepository.save(User(existingUserId, Instant.now()))
@@ -94,7 +94,7 @@ class ReplyServiceTest {
     }
 
     @Test
-    fun `replyToPost with empty content returns ValidationFailure`(phases: TestPhases) {
+    fun `when replyToPost with empty content then returns ValidationFailure`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -111,7 +111,7 @@ class ReplyServiceTest {
     }
 
     @Test
-    fun `replyToPost with content exceeding 280 graphemes returns ValidationFailure`(phases: TestPhases) {
+    fun `when replyToPost with content exceeding 280 graphemes then returns ValidationFailure`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -129,7 +129,7 @@ class ReplyServiceTest {
     }
 
     @Test
-    fun `replyToPost creates reply that can be queried by replyToPostId`(phases: TestPhases) {
+    fun `when replyToPost with multiple replies then returns them queryable by replyToPostId in order`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))

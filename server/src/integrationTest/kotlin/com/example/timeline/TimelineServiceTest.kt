@@ -57,7 +57,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getGlobalTimeline returns posts ordered by createdAt desc`(phases: TestPhases) {
+    fun `when getGlobalTimeline with multiple posts then returns posts ordered by createdAt desc`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -85,7 +85,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getGlobalTimeline excludes deleted posts`(phases: TestPhases) {
+    fun `when getGlobalTimeline with deleted post then excludes it from results`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -107,7 +107,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getGlobalTimeline respects limit and cursor`(phases: TestPhases) {
+    fun `when getGlobalTimeline with limit and cursor then returns paginated results`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -132,7 +132,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getGlobalTimeline includes like count`(phases: TestPhases) {
+    fun `when getGlobalTimeline with liked post then returns its like count`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         val likerId = UUID.randomUUID()
@@ -167,7 +167,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getGlobalTimeline shows delta posts created after last MV refresh`(phases: TestPhases) {
+    fun `when getGlobalTimeline with post created after last MV refresh then returns it as a delta post`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -188,7 +188,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getGlobalTimeline excludes delta-deleted posts`(phases: TestPhases) {
+    fun `when getGlobalTimeline with post deleted after last MV refresh then excludes it from results`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -210,7 +210,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getUserTimeline returns only posts by specified user`(phases: TestPhases) {
+    fun `when getUserTimeline with target user then returns only posts by that user`(phases: TestPhases) {
         phases.arrange()
         val user1 = UUID.randomUUID()
         val user2 = UUID.randomUUID()
@@ -235,7 +235,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getUserTimeline shows delta posts by target user`(phases: TestPhases) {
+    fun `when getUserTimeline with delta posts by target user then returns those delta posts`(phases: TestPhases) {
         phases.arrange()
         val user1 = UUID.randomUUID()
         val user2 = UUID.randomUUID()
@@ -260,7 +260,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getUserTimeline excludes deleted posts from other users`(phases: TestPhases) {
+    fun `when getUserTimeline with deleted post by another user then returns only posts by target user`(phases: TestPhases) {
         phases.arrange()
         val user1 = UUID.randomUUID()
         val user2 = UUID.randomUUID()
@@ -289,7 +289,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getUserTimeline excludes mv post deleted in delta`(phases: TestPhases) {
+    fun `when getUserTimeline with post deleted after last MV refresh then excludes it from results`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -313,7 +313,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getUserTimeline respects limit and cursor`(phases: TestPhases) {
+    fun `when getUserTimeline with limit and cursor then returns paginated results`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -338,7 +338,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getUserTimeline returns 404 result when cursor post belongs to another user`(phases: TestPhases) {
+    fun `when getUserTimeline with cursor post belonging to another user then returns Failure with IllegalArgumentException`(phases: TestPhases) {
         phases.arrange()
         val user1 = UUID.randomUUID()
         val user2 = UUID.randomUUID()
@@ -356,7 +356,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getGlobalTimeline returns isLikedByCurrentUser when userId provided`(phases: TestPhases) {
+    fun `when getGlobalTimeline with currentUserId then returns isLikedByCurrentUser`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -387,7 +387,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getGlobalTimeline records view events for returned posts when currentUserId provided`(phases: TestPhases) {
+    fun `when getGlobalTimeline with currentUserId then records view events for returned posts`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         val viewerId = UUID.randomUUID()
@@ -411,7 +411,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getGlobalTimeline does not record view events when currentUserId is null`(phases: TestPhases) {
+    fun `when getGlobalTimeline with null currentUserId then does not record view events`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -434,7 +434,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getUserTimeline records view events for returned posts when currentUserId provided`(phases: TestPhases) {
+    fun `when getUserTimeline with currentUserId then records view events for returned posts`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         val viewerId = UUID.randomUUID()
@@ -458,7 +458,7 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getUserTimeline does not record view events when currentUserId is null`(phases: TestPhases) {
+    fun `when getUserTimeline with null currentUserId then does not record view events`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
