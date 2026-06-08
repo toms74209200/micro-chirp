@@ -4,6 +4,7 @@ from uuid import uuid4
 import requests
 
 from lib.api_config import BASE_URL
+from lib.tracing import Phases
 from openapi_gen.micro_chirp_api_client.api.auth import post_auth_login
 from openapi_gen.micro_chirp_api_client.api.posts import post_posts
 from openapi_gen.micro_chirp_api_client.client import Client
@@ -13,19 +14,21 @@ UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-
 ISO8601_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$")
 
 
-def test_get_timeline_global_with_valid_request_returns_200():
+def test_get_timeline_global_with_valid_request_returns_200(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=auth_response.user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/timeline/global", params={"limit": 1})
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["limit"] == 1
@@ -43,44 +46,46 @@ def test_get_timeline_global_with_valid_request_returns_200():
     assert data["posts"][0]["isRepostedByCurrentUser"] is None
 
 
-def test_get_timeline_global_with_deleted_post_returns_200_without_deleted_post():
+def test_get_timeline_global_with_deleted_post_returns_200_without_deleted_post(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=auth_response.user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     delete_response = requests.delete(f"{BASE_URL}/posts/{post_id}", json={"userId": user_id})
     assert delete_response.status_code == 204
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/timeline/global")
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     post_ids = [p["postId"] for p in data["posts"]]
     assert post_id not in post_ids
 
 
-def test_get_timeline_global_with_liked_post_and_user_id_returns_is_liked_true():
+def test_get_timeline_global_with_liked_post_and_user_id_returns_is_liked_true(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=auth_response.user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     like_response = requests.post(f"{BASE_URL}/posts/{post_id}/likes", json={"userId": user_id})
     assert like_response.status_code == 201
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/timeline/global", params={"limit": 1, "userId": user_id})
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["posts"][0]["postId"] == post_id
@@ -89,11 +94,11 @@ def test_get_timeline_global_with_liked_post_and_user_id_returns_is_liked_true()
     assert data["posts"][0]["isRepostedByCurrentUser"] is False
 
 
-def test_get_timeline_global_with_limit_and_cursor_returns_paginated_results():
+def test_get_timeline_global_with_limit_and_cursor_returns_paginated_results(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = auth_response.user_id
-
     post1 = post_posts.sync(
         client=client, body=PostPostsBody(user_id=user_id, content=f"Test content {uuid4().hex[:8]}")
     )
@@ -105,7 +110,10 @@ def test_get_timeline_global_with_limit_and_cursor_returns_paginated_results():
     )
     assert post1 is not None and post2 is not None and post3 is not None
 
+    phases.act()
     page1 = requests.get(f"{BASE_URL}/timeline/global", params={"limit": 2})
+
+    phases.assert_()
     assert page1.status_code == 200
     page1_data = page1.json()
     assert page1_data["limit"] == 2
@@ -120,19 +128,21 @@ def test_get_timeline_global_with_limit_and_cursor_returns_paginated_results():
     assert page2_data["posts"][0]["postId"] == str(post1.post_id)
 
 
-def test_get_timeline_by_user_id_with_valid_request_returns_200():
+def test_get_timeline_by_user_id_with_valid_request_returns_200(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=auth_response.user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/timeline/users/{user_id}", params={"limit": 1})
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["limit"] == 1
@@ -150,18 +160,17 @@ def test_get_timeline_by_user_id_with_valid_request_returns_200():
     assert data["posts"][0]["isRepostedByCurrentUser"] is None
 
 
-def test_get_timeline_by_user_id_with_another_users_post_returns_only_that_users_posts():
+def test_get_timeline_by_user_id_with_another_users_post_returns_only_that_users_posts(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response1 = post_auth_login.sync(client=client)
     user_id1 = str(auth_response1.user_id)
     auth_response2 = post_auth_login.sync(client=client)
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=auth_response1.user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     other_create_response = post_posts.sync(
         client=client,
         body=PostPostsBody(user_id=auth_response2.user_id, content=f"Test content {uuid4().hex[:8]}"),
@@ -169,8 +178,10 @@ def test_get_timeline_by_user_id_with_another_users_post_returns_only_that_users
     assert other_create_response is not None
     other_post_id = str(other_create_response.post_id)
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/timeline/users/{user_id1}", params={"limit": 10})
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     posts = data.get("posts", [])
@@ -181,46 +192,48 @@ def test_get_timeline_by_user_id_with_another_users_post_returns_only_that_users
     assert other_post_id not in post_ids
 
 
-def test_get_timeline_by_user_id_with_deleted_post_returns_empty_posts():
+def test_get_timeline_by_user_id_with_deleted_post_returns_empty_posts(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=auth_response.user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     delete_response = requests.delete(f"{BASE_URL}/posts/{post_id}", json={"userId": user_id})
     assert delete_response.status_code == 204
 
+    phases.act()
     response = requests.get(f"{BASE_URL}/timeline/users/{user_id}")
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["posts"] == []
 
 
-def test_get_timeline_by_user_id_with_reposted_post_and_current_user_id_returns_is_reposted_true():
+def test_get_timeline_by_user_id_with_reposted_post_and_current_user_id_returns_is_reposted_true(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     expected_content = f"Test content {uuid4().hex[:8]}"
     body = PostPostsBody(user_id=auth_response.user_id, content=expected_content)
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     repost_response = requests.post(f"{BASE_URL}/posts/{post_id}/reposts", json={"userId": user_id})
     assert repost_response.status_code == 201
 
+    phases.act()
     response = requests.get(
         f"{BASE_URL}/timeline/users/{user_id}",
         params={"limit": 1, "currentUserId": user_id},
     )
 
+    phases.assert_()
     assert response.status_code == 200
     data = response.json()
     assert data["posts"][0]["postId"] == post_id
@@ -229,92 +242,98 @@ def test_get_timeline_by_user_id_with_reposted_post_and_current_user_id_returns_
     assert data["posts"][0]["isRepostedByCurrentUser"] is True
 
 
-def test_get_timeline_global_with_user_id_increments_view_count():
+def test_get_timeline_global_with_user_id_increments_view_count(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     body = PostPostsBody(user_id=auth_response.user_id, content=f"Test content {uuid4().hex[:8]}")
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     before = requests.get(f"{BASE_URL}/posts/{post_id}")
     assert before.json()["viewCount"] == 0
 
+    phases.act()
     timeline_response = requests.get(f"{BASE_URL}/timeline/global", params={"limit": 1, "userId": user_id})
     assert timeline_response.status_code == 200
 
+    phases.assert_()
     after = requests.get(f"{BASE_URL}/posts/{post_id}")
     assert after.json()["viewCount"] == 1
 
 
-def test_get_timeline_global_without_user_id_does_not_increment_view_count():
+def test_get_timeline_global_without_user_id_does_not_increment_view_count(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
-
     body = PostPostsBody(user_id=auth_response.user_id, content=f"Test content {uuid4().hex[:8]}")
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     before = requests.get(f"{BASE_URL}/posts/{post_id}")
     assert before.json()["viewCount"] == 0
 
+    phases.act()
     timeline_response = requests.get(f"{BASE_URL}/timeline/global", params={"limit": 1})
     assert timeline_response.status_code == 200
 
+    phases.assert_()
     after = requests.get(f"{BASE_URL}/posts/{post_id}")
     assert after.json()["viewCount"] == 0
 
 
-def test_get_timeline_by_user_id_with_current_user_id_increments_view_count():
+def test_get_timeline_by_user_id_with_current_user_id_increments_view_count(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     viewer_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
     viewer_id = str(viewer_response.user_id)
-
     body = PostPostsBody(user_id=auth_response.user_id, content=f"Test content {uuid4().hex[:8]}")
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     before = requests.get(f"{BASE_URL}/posts/{post_id}")
     assert before.json()["viewCount"] == 0
 
-    timeline_response = requests.get(f"{BASE_URL}/timeline/users/{user_id}", params={"limit": 1, "currentUserId": viewer_id})
+    phases.act()
+    timeline_response = requests.get(
+        f"{BASE_URL}/timeline/users/{user_id}", params={"limit": 1, "currentUserId": viewer_id}
+    )
     assert timeline_response.status_code == 200
 
+    phases.assert_()
     after = requests.get(f"{BASE_URL}/posts/{post_id}")
     assert after.json()["viewCount"] == 1
 
 
-def test_get_timeline_by_user_id_without_current_user_id_does_not_increment_view_count():
+def test_get_timeline_by_user_id_without_current_user_id_does_not_increment_view_count(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     body = PostPostsBody(user_id=auth_response.user_id, content=f"Test content {uuid4().hex[:8]}")
     create_response = post_posts.sync(client=client, body=body)
     assert create_response is not None
     post_id = str(create_response.post_id)
-
     before = requests.get(f"{BASE_URL}/posts/{post_id}")
     assert before.json()["viewCount"] == 0
 
+    phases.act()
     timeline_response = requests.get(f"{BASE_URL}/timeline/users/{user_id}", params={"limit": 1})
     assert timeline_response.status_code == 200
 
+    phases.assert_()
     after = requests.get(f"{BASE_URL}/posts/{post_id}")
     assert after.json()["viewCount"] == 0
 
 
-def test_get_timeline_by_user_id_with_limit_and_cursor_returns_paginated_results():
+def test_get_timeline_by_user_id_with_limit_and_cursor_returns_paginated_results(phases: Phases):
+    phases.arrange()
     client = Client(base_url=BASE_URL)
     auth_response = post_auth_login.sync(client=client)
     user_id = str(auth_response.user_id)
-
     post1 = post_posts.sync(
         client=client, body=PostPostsBody(user_id=auth_response.user_id, content=f"Test content {uuid4().hex[:8]}")
     )
@@ -326,7 +345,10 @@ def test_get_timeline_by_user_id_with_limit_and_cursor_returns_paginated_results
     )
     assert post1 is not None and post2 is not None and post3 is not None
 
+    phases.act()
     page1 = requests.get(f"{BASE_URL}/timeline/users/{user_id}", params={"limit": 2})
+
+    phases.assert_()
     assert page1.status_code == 200
     page1_data = page1.json()
     assert page1_data["limit"] == 2
