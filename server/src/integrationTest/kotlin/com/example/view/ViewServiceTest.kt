@@ -33,7 +33,7 @@ class ViewServiceTest {
     private lateinit var userRepository: UserRepository
 
     @Test
-    fun `recordView with valid request returns Success and persists event`(phases: TestPhases) {
+    fun `when recordView with valid request then returns Success and persists event`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -57,7 +57,7 @@ class ViewServiceTest {
     }
 
     @Test
-    fun `recordView with non-existent post returns Failure with ViewPostNotFoundException`(phases: TestPhases) {
+    fun `when recordView with non-existent post then returns Failure with ViewPostNotFoundException`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -73,7 +73,7 @@ class ViewServiceTest {
     }
 
     @Test
-    fun `recordView with non-existent user returns Failure with ViewUserNotFoundException`(phases: TestPhases) {
+    fun `when recordView with non-existent user then returns Failure with ViewUserNotFoundException`(phases: TestPhases) {
         phases.arrange()
         val authorId = UUID.randomUUID()
         userRepository.save(User(authorId, Instant.now()))
@@ -91,7 +91,7 @@ class ViewServiceTest {
     }
 
     @Test
-    fun `recordView multiple times increments viewCount`(phases: TestPhases) {
+    fun `when recordView with multiple viewers then increments viewCount`(phases: TestPhases) {
         phases.arrange()
         val userId1 = UUID.randomUUID()
         val userId2 = UUID.randomUUID()

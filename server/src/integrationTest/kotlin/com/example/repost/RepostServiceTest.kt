@@ -33,7 +33,7 @@ class RepostServiceTest {
     private lateinit var userRepository: UserRepository
 
     @Test
-    fun `repostPost with valid request returns Success`(phases: TestPhases) {
+    fun `when repostPost with valid request then returns Success`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -58,7 +58,7 @@ class RepostServiceTest {
     }
 
     @Test
-    fun `repostPost with non-existent post returns Failure with RepostPostNotFoundException`(phases: TestPhases) {
+    fun `when repostPost with non-existent post then returns Failure with RepostPostNotFoundException`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -74,7 +74,7 @@ class RepostServiceTest {
     }
 
     @Test
-    fun `repostPost with non-existent user returns Failure with RepostUserNotFoundException`(phases: TestPhases) {
+    fun `when repostPost with non-existent user then returns Failure with RepostUserNotFoundException`(phases: TestPhases) {
         phases.arrange()
         val authorId = UUID.randomUUID()
         userRepository.save(User(authorId, Instant.now()))
@@ -92,7 +92,7 @@ class RepostServiceTest {
     }
 
     @Test
-    fun `unrepostPost with valid request returns Success and creates unrepost event`(phases: TestPhases) {
+    fun `when unrepostPost with valid request then returns Success and creates unrepost event`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -112,7 +112,7 @@ class RepostServiceTest {
     }
 
     @Test
-    fun `unrepostPost with non-existent post returns Failure with RepostPostNotFoundException`(phases: TestPhases) {
+    fun `when unrepostPost with non-existent post then returns Failure with RepostPostNotFoundException`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -128,7 +128,7 @@ class RepostServiceTest {
     }
 
     @Test
-    fun `unrepostPost with non-existent user returns Failure with RepostUserNotFoundException`(phases: TestPhases) {
+    fun `when unrepostPost with non-existent user then returns Failure with RepostUserNotFoundException`(phases: TestPhases) {
         phases.arrange()
         val authorId = UUID.randomUUID()
         userRepository.save(User(authorId, Instant.now()))

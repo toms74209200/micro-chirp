@@ -287,7 +287,7 @@ class PostServiceTest {
     }
 
     @Test
-    fun `getPost with liked post by current user returns likeCount and isLikedByCurrentUser true`(phases: TestPhases) {
+    fun `when getPost with post liked by current user then returns likeCount and isLikedByCurrentUser true`(phases: TestPhases) {
         phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
