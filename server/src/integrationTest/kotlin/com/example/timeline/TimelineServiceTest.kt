@@ -8,10 +8,13 @@ import com.example.like.LikeEventRepository
 import com.example.like.LikeEventType
 import com.example.post.PostCreationResult
 import com.example.post.PostService
+import com.example.test.tracing.SpanTimingExtension
+import com.example.test.tracing.TestPhases
 import com.example.view.ViewEventRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
@@ -21,6 +24,7 @@ import java.util.UUID
 
 @SpringBootTest
 @Import(TestcontainersConfiguration::class)
+@ExtendWith(SpanTimingExtension::class)
 class TimelineServiceTest {
     @Autowired
     private lateinit var timelineService: TimelineService
@@ -53,7 +57,8 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getGlobalTimeline returns posts ordered by createdAt desc`() {
+    fun `getGlobalTimeline returns posts ordered by createdAt desc`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
@@ -66,8 +71,10 @@ class TimelineServiceTest {
             mvRefreshLogRepository.save(log)
         }
 
+        phases.act()
         val result = timelineService.getGlobalTimeline(20, null, null) as TimelineResult.Success
 
+        phases.assert()
         val returnedIds = result.posts.map { it.postId }
         val post1Index = returnedIds.indexOf(post1.postId)
         val post2Index = returnedIds.indexOf(post2.postId)
@@ -78,7 +85,8 @@ class TimelineServiceTest {
     }
 
     @Test
-    fun `getGlobalTimeline excludes deleted posts`() {
+    fun `getGlobalTimeline excludes deleted posts`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
@@ -91,13 +99,16 @@ class TimelineServiceTest {
             mvRefreshLogRepository.save(log)
         }
 
+        phases.act()
         val result = timelineService.getGlobalTimeline(100, null, null) as TimelineResult.Success
 
+        phases.assert()
         assertThat(result.posts.map { it.postId }).doesNotContain(post.postId)
     }
 
     @Test
-    fun `getGlobalTimeline respects limit and cursor`() {
+    fun `getGlobalTimeline respects limit and cursor`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
@@ -109,17 +120,20 @@ class TimelineServiceTest {
             mvRefreshLogRepository.save(log)
         }
 
+        phases.act()
         val page1 = timelineService.getGlobalTimeline(2, null, null) as TimelineResult.Success
         val cursor = page1.posts.last().postId
         val page2 = timelineService.getGlobalTimeline(2, cursor, null) as TimelineResult.Success
 
+        phases.assert()
         assertThat(page1.posts).hasSize(2)
         assertThat(page2.posts).hasSize(2)
         assertThat(page1.posts.map { it.postId }).doesNotContainAnyElementsOf(page2.posts.map { it.postId })
     }
 
     @Test
-    fun `getGlobalTimeline includes like count`() {
+    fun `getGlobalTimeline includes like count`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         val likerId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -143,15 +157,18 @@ class TimelineServiceTest {
             mvRefreshLogRepository.save(log)
         }
 
+        phases.act()
         val result = timelineService.getGlobalTimeline(100, null, null) as TimelineResult.Success
-        val postItem = result.posts.find { it.postId == post.postId }
 
+        phases.assert()
+        val postItem = result.posts.find { it.postId == post.postId }
         assertThat(postItem).isNotNull()
         assertThat(postItem!!.likeCount).isEqualTo(1)
     }
 
     @Test
-    fun `getGlobalTimeline shows delta posts created after last MV refresh`() {
+    fun `getGlobalTimeline shows delta posts created after last MV refresh`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
@@ -163,13 +180,16 @@ class TimelineServiceTest {
 
         val deltaPost = postService.createPost(userId, "Delta post") as PostCreationResult.Success
 
+        phases.act()
         val result = timelineService.getGlobalTimeline(100, null, null) as TimelineResult.Success
 
+        phases.assert()
         assertThat(result.posts.map { it.postId }).contains(deltaPost.postId)
     }
 
     @Test
-    fun `getGlobalTimeline excludes delta-deleted posts`() {
+    fun `getGlobalTimeline excludes delta-deleted posts`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
@@ -182,13 +202,16 @@ class TimelineServiceTest {
         val post = postService.createPost(userId, "Delta deleted post") as PostCreationResult.Success
         postService.deletePost(post.postId, userId)
 
+        phases.act()
         val result = timelineService.getGlobalTimeline(100, null, null) as TimelineResult.Success
 
+        phases.assert()
         assertThat(result.posts.map { it.postId }).doesNotContain(post.postId)
     }
 
     @Test
-    fun `getUserTimeline returns only posts by specified user`() {
+    fun `getUserTimeline returns only posts by specified user`(phases: TestPhases) {
+        phases.arrange()
         val user1 = UUID.randomUUID()
         val user2 = UUID.randomUUID()
         userRepository.save(User(user1, Instant.now()))
@@ -203,14 +226,17 @@ class TimelineServiceTest {
             mvRefreshLogRepository.save(log)
         }
 
+        phases.act()
         val result = timelineService.getUserTimeline(user1, 20, null, null) as TimelineResult.Success
 
+        phases.assert()
         assertThat(result.posts.map { it.postId }).contains(post1.postId)
         assertThat(result.posts.map { it.postId }).doesNotContain(post2.postId)
     }
 
     @Test
-    fun `getUserTimeline shows delta posts by target user`() {
+    fun `getUserTimeline shows delta posts by target user`(phases: TestPhases) {
+        phases.arrange()
         val user1 = UUID.randomUUID()
         val user2 = UUID.randomUUID()
         userRepository.save(User(user1, Instant.now()))
@@ -225,14 +251,17 @@ class TimelineServiceTest {
         val deltaPost1 = postService.createPost(user1, "Delta post by user1") as PostCreationResult.Success
         postService.createPost(user2, "Delta post by user2") as PostCreationResult.Success
 
+        phases.act()
         val result = timelineService.getUserTimeline(user1, 20, null, null) as TimelineResult.Success
 
+        phases.assert()
         assertThat(result.posts.map { it.postId }).contains(deltaPost1.postId)
         assertThat(result.posts.map { it.userId }.toSet()).containsOnly(user1)
     }
 
     @Test
-    fun `getUserTimeline excludes deleted posts from other users`() {
+    fun `getUserTimeline excludes deleted posts from other users`(phases: TestPhases) {
+        phases.arrange()
         val user1 = UUID.randomUUID()
         val user2 = UUID.randomUUID()
         userRepository.save(User(user1, Instant.now()))
@@ -251,14 +280,17 @@ class TimelineServiceTest {
         val user2Post = postService.createPost(user2, "User2 post to delete") as PostCreationResult.Success
         postService.deletePost(user2Post.postId, user2)
 
+        phases.act()
         val result = timelineService.getUserTimeline(user1, 10, null, null) as TimelineResult.Success
 
+        phases.assert()
         assertThat(result.posts).hasSize(3)
         assertThat(result.posts.map { it.userId }.toSet()).containsOnly(user1)
     }
 
     @Test
-    fun `getUserTimeline excludes mv post deleted in delta`() {
+    fun `getUserTimeline excludes mv post deleted in delta`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
@@ -273,13 +305,16 @@ class TimelineServiceTest {
 
         postService.deletePost(postInMv.postId, userId)
 
+        phases.act()
         val result = timelineService.getUserTimeline(userId, 10, null, null) as TimelineResult.Success
 
+        phases.assert()
         assertThat(result.posts.map { it.postId }).containsOnly(postKept.postId)
     }
 
     @Test
-    fun `getUserTimeline respects limit and cursor`() {
+    fun `getUserTimeline respects limit and cursor`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
@@ -291,17 +326,20 @@ class TimelineServiceTest {
             mvRefreshLogRepository.save(log)
         }
 
+        phases.act()
         val page1 = timelineService.getUserTimeline(userId, 2, null, null) as TimelineResult.Success
         val cursor = page1.posts.last().postId
         val page2 = timelineService.getUserTimeline(userId, 2, cursor, null) as TimelineResult.Success
 
+        phases.assert()
         assertThat(page1.posts).hasSize(2)
         assertThat(page2.posts).hasSize(2)
         assertThat(page1.posts.map { it.postId }).doesNotContainAnyElementsOf(page2.posts.map { it.postId })
     }
 
     @Test
-    fun `getUserTimeline returns 404 result when cursor post belongs to another user`() {
+    fun `getUserTimeline returns 404 result when cursor post belongs to another user`(phases: TestPhases) {
+        phases.arrange()
         val user1 = UUID.randomUUID()
         val user2 = UUID.randomUUID()
         userRepository.save(User(user1, Instant.now()))
@@ -309,14 +347,17 @@ class TimelineServiceTest {
 
         val user2Post = postService.createPost(user2, "User2 post") as PostCreationResult.Success
 
+        phases.act()
         val result = timelineService.getUserTimeline(user1, 10, user2Post.postId, null)
 
+        phases.assert()
         assertThat(result).isInstanceOf(TimelineResult.Failure::class.java)
         assertThat((result as TimelineResult.Failure).exception).isInstanceOf(IllegalArgumentException::class.java)
     }
 
     @Test
-    fun `getGlobalTimeline returns isLikedByCurrentUser when userId provided`() {
+    fun `getGlobalTimeline returns isLikedByCurrentUser when userId provided`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
@@ -337,14 +378,17 @@ class TimelineServiceTest {
             mvRefreshLogRepository.save(log)
         }
 
+        phases.act()
         val result = timelineService.getGlobalTimeline(100, null, userId) as TimelineResult.Success
-        val postItem = result.posts.find { it.postId == post.postId }
 
+        phases.assert()
+        val postItem = result.posts.find { it.postId == post.postId }
         assertThat(postItem!!.isLikedByCurrentUser).isTrue()
     }
 
     @Test
-    fun `getGlobalTimeline records view events for returned posts when currentUserId provided`() {
+    fun `getGlobalTimeline records view events for returned posts when currentUserId provided`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         val viewerId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -358,14 +402,17 @@ class TimelineServiceTest {
             mvRefreshLogRepository.save(log)
         }
 
+        phases.act()
         timelineService.getGlobalTimeline(20, null, viewerId)
 
+        phases.assert()
         val viewCount = viewEventRepository.countByPostId(post.postId)
         assertThat(viewCount).isGreaterThan(0)
     }
 
     @Test
-    fun `getGlobalTimeline does not record view events when currentUserId is null`() {
+    fun `getGlobalTimeline does not record view events when currentUserId is null`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
@@ -376,16 +423,19 @@ class TimelineServiceTest {
             log.lastRefreshedAt = Instant.now()
             mvRefreshLogRepository.save(log)
         }
-
         val before = viewEventRepository.countByPostId(post.postId)
-        timelineService.getGlobalTimeline(20, null, null)
-        val after = viewEventRepository.countByPostId(post.postId)
 
+        phases.act()
+        timelineService.getGlobalTimeline(20, null, null)
+
+        phases.assert()
+        val after = viewEventRepository.countByPostId(post.postId)
         assertThat(after).isEqualTo(before)
     }
 
     @Test
-    fun `getUserTimeline records view events for returned posts when currentUserId provided`() {
+    fun `getUserTimeline records view events for returned posts when currentUserId provided`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         val viewerId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
@@ -399,14 +449,17 @@ class TimelineServiceTest {
             mvRefreshLogRepository.save(log)
         }
 
+        phases.act()
         timelineService.getUserTimeline(userId, 20, null, viewerId)
 
+        phases.assert()
         val viewCount = viewEventRepository.countByPostId(post.postId)
         assertThat(viewCount).isGreaterThan(0)
     }
 
     @Test
-    fun `getUserTimeline does not record view events when currentUserId is null`() {
+    fun `getUserTimeline does not record view events when currentUserId is null`(phases: TestPhases) {
+        phases.arrange()
         val userId = UUID.randomUUID()
         userRepository.save(User(userId, Instant.now()))
 
@@ -417,11 +470,13 @@ class TimelineServiceTest {
             log.lastRefreshedAt = Instant.now()
             mvRefreshLogRepository.save(log)
         }
-
         val before = viewEventRepository.countByPostId(post.postId)
-        timelineService.getUserTimeline(userId, 20, null, null)
-        val after = viewEventRepository.countByPostId(post.postId)
 
+        phases.act()
+        timelineService.getUserTimeline(userId, 20, null, null)
+
+        phases.assert()
+        val after = viewEventRepository.countByPostId(post.postId)
         assertThat(after).isEqualTo(before)
     }
 }

@@ -77,7 +77,8 @@ dependencies {
     integrationTestImplementation("org.testcontainers:testcontainers-junit-jupiter")
     integrationTestImplementation("org.testcontainers:testcontainers-postgresql")
     integrationTestImplementation("org.apache.commons:commons-lang3:3.17.0")
-    integrationTestRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    integrationTestImplementation("io.opentelemetry:opentelemetry-sdk-testing")
+    integrationTestImplementation("org.junit.platform:junit-platform-launcher")
 }
 
 kotlin {
@@ -121,6 +122,7 @@ val integrationTest =
         useJUnitPlatform()
         environment("TESTCONTAINERS_RYUK_DISABLED", "true")
         environment("TESTCONTAINERS_HOST_OVERRIDE", System.getenv("TESTCONTAINERS_HOST_OVERRIDE") ?: "host.docker.internal")
+        systemProperty("spanTiming.enabled", project.hasProperty("spanReport"))
         testLogging {
             events("passed", "skipped", "failed")
             exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
